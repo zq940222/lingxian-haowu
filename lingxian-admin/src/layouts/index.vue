@@ -3,7 +3,7 @@
     <!-- 侧边栏 -->
     <el-aside :width="isCollapse ? '64px' : '220px'" class="aside">
       <div class="logo">
-        <img src="@/assets/logo.png" alt="logo" />
+        <img src="@/assets/logo.svg" alt="logo" />
         <span v-show="!isCollapse">铃鲜好物</span>
       </div>
       <el-menu

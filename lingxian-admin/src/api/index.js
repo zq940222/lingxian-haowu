@@ -89,7 +89,7 @@ export const systemApi = {
 
 // ============ 统计数据 ============
 export const statisticsApi = {
-  getDashboard: () => request({ url: '/admin/statistics/dashboard', method: 'get' }),
+  getDashboard: () => request({ url: '/admin/dashboard', method: 'get' }),
   getSalesStats: (params) => request({ url: '/admin/statistics/sales', method: 'get', params }),
   getOrderStats: (params) => request({ url: '/admin/statistics/orders', method: 'get', params }),
   getUserStats: (params) => request({ url: '/admin/statistics/users', method: 'get', params }),
