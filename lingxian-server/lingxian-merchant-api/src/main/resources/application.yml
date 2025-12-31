@@ -1,0 +1,109 @@
+server:
+  port: 8086
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: lingxian-merchant-api
+
+  # PostgreSQL 数据库配置
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5432/lingxian_db
+    username: postgres
+    password: ${DB_PASSWORD:postgres123}
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 30000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+
+  # Redis 配置
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      database: 0
+      lettuce:
+        pool:
+          max-active: 8
+          max-wait: -1
+          max-idle: 8
+          min-idle: 0
+
+  # 文件上传配置
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 50MB
+
+  # Jackson 配置
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+    serialization:
+      write-dates-as-timestamps: false
+
+# MyBatis Plus 配置
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: com.lingxian.common.entity
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+  configuration:
+    map-underscore-to-camel-case: true
+    cache-enabled: false
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+# 微信小程序配置
+wechat:
+  miniapp:
+    merchant:
+      app-id: ${WX_MERCHANT_APPID:your_merchant_appid}
+      secret: ${WX_MERCHANT_SECRET:your_merchant_secret}
+
+# JWT 配置
+jwt:
+  secret: ${JWT_SECRET:your_jwt_secret_key_must_be_at_least_256_bits}
+  expiration: 604800000
+  refresh-expiration: 2592000000
+  header: Authorization
+  prefix: Bearer
+
+# MinIO 对象存储配置
+minio:
+  endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin123}
+  bucket-name: lingxian
+
+# Knife4j API文档配置
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: 'merchant-api'
+      paths-to-match: '/**'
+      packages-to-scan: com.lingxian.merchant.controller
+
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
+    swagger-model-name: '实体类列表'
+
+logging:
+  level:
+    root: INFO
+    com.lingxian: DEBUG
+    com.baomidou.mybatisplus: DEBUG

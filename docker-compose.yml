@@ -1,0 +1,181 @@
+# ====================================
+# 铃鲜好物 - 生产部署 Docker Compose
+# 用途: 生产环境一键部署所有服务
+# 启动: docker-compose up -d
+# ====================================
+
+version: '3.8'
+
+services:
+  # ============ 基础设施服务 ============
+
+  # PostgreSQL 数据库
+  postgres:
+    image: postgres:15-alpine
+    container_name: lingxian-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: lingxian_db
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?数据库密码必须设置}
+      TZ: Asia/Shanghai
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docs/database/schema.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - lingxian-backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d lingxian_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: lingxian-redis
+    restart: always
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis123}
+    volumes:
+      - redis_data:/data
+    networks:
+      - lingxian-backend
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis123}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # MinIO 对象存储
+  minio:
+    image: minio/minio:latest
+    container_name: lingxian-minio
+    restart: always
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?MinIO密码必须设置}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - lingxian-backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ============ 应用服务 ============
+
+  # 后端API服务
+  lingxian-server:
+    build:
+      context: ./lingxian-server
+      dockerfile: Dockerfile
+    image: lingxian-server:latest
+    container_name: lingxian-server
+    restart: always
+    environment:
+      # 数据库配置
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/lingxian_db
+      SPRING_DATASOURCE_USERNAME: ${DB_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      # Redis配置
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-redis123}
+      # MinIO配置
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      # JWT配置
+      JWT_SECRET: ${JWT_SECRET:?JWT密钥必须设置}
+      # 微信配置
+      WX_USER_APPID: ${WX_USER_APPID}
+      WX_USER_SECRET: ${WX_USER_SECRET}
+      WX_MERCHANT_APPID: ${WX_MERCHANT_APPID}
+      WX_MERCHANT_SECRET: ${WX_MERCHANT_SECRET}
+      WX_MCH_ID: ${WX_MCH_ID}
+      WX_MCH_KEY: ${WX_MCH_KEY}
+      # JVM配置
+      JAVA_OPTS: "-Xms512m -Xmx1024m -XX:+UseG1GC"
+      TZ: Asia/Shanghai
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - lingxian-backend
+      - lingxian-frontend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 1.5G
+
+  # ============ 网关服务 ============
+
+  # Nginx 反向代理
+  nginx:
+    image: nginx:alpine
+    container_name: lingxian-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./lingxian-admin/dist:/usr/share/nginx/html/admin:ro
+      - ./deploy/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - lingxian-server
+    networks:
+      - lingxian-frontend
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+volumes:
+  postgres_data:
+    name: lingxian_postgres
+  redis_data:
+    name: lingxian_redis
+  minio_data:
+    name: lingxian_minio
+  nginx_logs:
+    name: lingxian_nginx_logs
+
+networks:
+  lingxian-backend:
+    name: lingxian-backend
+    driver: bridge
+  lingxian-frontend:
+    name: lingxian-frontend
+    driver: bridge

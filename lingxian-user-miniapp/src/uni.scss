@@ -1,0 +1,49 @@
+/* uni-app 全局样式变量 */
+
+/* 主题色 */
+$primary-color: #07c160;
+$primary-light: #e6f7ed;
+$success-color: #52c41a;
+$warning-color: #faad14;
+$danger-color: #ff4d4f;
+$info-color: #1890ff;
+
+/* 文字颜色 */
+$text-color: #333333;
+$text-color-secondary: #666666;
+$text-color-placeholder: #999999;
+$text-color-disabled: #cccccc;
+
+/* 背景色 */
+$bg-color: #f5f5f5;
+$bg-color-white: #ffffff;
+$bg-color-grey: #f8f8f8;
+
+/* 边框颜色 */
+$border-color: #e5e5e5;
+$border-color-light: #f0f0f0;
+
+/* 字体大小 */
+$font-size-xs: 22rpx;
+$font-size-sm: 24rpx;
+$font-size-base: 28rpx;
+$font-size-lg: 32rpx;
+$font-size-xl: 36rpx;
+$font-size-xxl: 40rpx;
+
+/* 间距 */
+$spacing-xs: 10rpx;
+$spacing-sm: 16rpx;
+$spacing-base: 20rpx;
+$spacing-lg: 30rpx;
+$spacing-xl: 40rpx;
+
+/* 圆角 */
+$border-radius-sm: 8rpx;
+$border-radius-base: 12rpx;
+$border-radius-lg: 16rpx;
+$border-radius-round: 100rpx;
+
+/* 阴影 */
+$box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.08);
+$box-shadow-lg: 0 4rpx 20rpx rgba(0, 0, 0, 0.12);
