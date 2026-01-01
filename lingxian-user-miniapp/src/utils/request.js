@@ -2,10 +2,11 @@
  * uni-app 网络请求封装
  */
 
-// 开发环境使用本地地址，生产环境使用线上地址
-const BASE_URL = process.env.NODE_ENV === 'development'
-  ? 'http://localhost:8085/api'
-  : 'https://api.lingxian.com/api'
+// API 基础地址配置
+// 开发阶段使用本地地址，部署时改为线上地址
+const BASE_URL = 'http://localhost:8085/api'
+// 生产环境地址（部署时取消注释并注释上面的）
+// const BASE_URL = 'https://api.lingxian.com/api'
 
 // 请求拦截
 const request = (options) => {

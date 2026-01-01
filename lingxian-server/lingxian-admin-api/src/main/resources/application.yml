@@ -76,6 +76,38 @@ minio:
   secret-key: ${MINIO_SECRET_KEY:minioadmin123}
   bucket-name: lingxian
 
+# 存储配置 (支持 local/minio/aliyun/huawei)
+storage:
+  type: ${STORAGE_TYPE:minio}
+  # 本地存储配置
+  local:
+    domain: ${LOCAL_STORAGE_DOMAIN:http://localhost:8087/api}
+    path: ${LOCAL_STORAGE_PATH:./uploads}
+  # MinIO 配置
+  minio:
+    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+    access-key: ${MINIO_ACCESS_KEY:minioadmin}
+    secret-key: ${MINIO_SECRET_KEY:minioadmin123}
+    bucket-name: ${MINIO_BUCKET_NAME:lingxian}
+    domain: ${MINIO_DOMAIN:}
+    prefix: ${MINIO_PREFIX:uploads/}
+  # 阿里云 OSS 配置
+  aliyun:
+    endpoint: ${ALIYUN_OSS_ENDPOINT:}
+    access-key-id: ${ALIYUN_OSS_ACCESS_KEY_ID:}
+    access-key-secret: ${ALIYUN_OSS_ACCESS_KEY_SECRET:}
+    bucket-name: ${ALIYUN_OSS_BUCKET_NAME:}
+    domain: ${ALIYUN_OSS_DOMAIN:}
+    prefix: ${ALIYUN_OSS_PREFIX:uploads/}
+  # 华为云 OBS 配置
+  huawei:
+    endpoint: ${HUAWEI_OBS_ENDPOINT:}
+    access-key-id: ${HUAWEI_OBS_ACCESS_KEY_ID:}
+    secret-access-key: ${HUAWEI_OBS_SECRET_ACCESS_KEY:}
+    bucket-name: ${HUAWEI_OBS_BUCKET_NAME:}
+    domain: ${HUAWEI_OBS_DOMAIN:}
+    prefix: ${HUAWEI_OBS_PREFIX:uploads/}
+
 # Knife4j API文档配置
 springdoc:
   swagger-ui:

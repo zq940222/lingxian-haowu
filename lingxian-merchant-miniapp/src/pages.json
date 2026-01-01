@@ -112,6 +112,24 @@
         "navigationBarTitleText": "商家登录",
         "navigationStyle": "custom"
       }
+    },
+    {
+      "path": "pages/apply/index",
+      "style": {
+        "navigationBarTitleText": "商户入驻申请"
+      }
+    },
+    {
+      "path": "pages/apply/status",
+      "style": {
+        "navigationBarTitleText": "申请状态"
+      }
+    },
+    {
+      "path": "pages/apply/edit",
+      "style": {
+        "navigationBarTitleText": "修改申请"
+      }
     }
   ],
   "globalStyle": {

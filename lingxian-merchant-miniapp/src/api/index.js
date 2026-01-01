@@ -9,10 +9,20 @@ export const authApi = {
   login: (data) => post('/merchant/auth/login', data),
   // 微信登录
   wxLogin: (data) => post('/merchant/auth/wx-login', data),
+  // 检查登录状态
+  checkLogin: () => get('/merchant/auth/check'),
   // 获取商户信息
-  getMerchantInfo: () => get('/merchant/info'),
+  getMerchantInfo: () => get('/merchant/auth/info'),
   // 更新商户信息
-  updateMerchantInfo: (data) => put('/merchant/info', data)
+  updateMerchantInfo: (data) => put('/merchant/auth/info', data),
+  // 提交入驻申请
+  applyMerchant: (data) => post('/merchant/auth/apply', data),
+  // 更新入驻申请
+  updateApply: (data) => put('/merchant/auth/apply', data),
+  // 查询申请状态
+  getApplyStatus: () => get('/merchant/auth/apply/status'),
+  // 刷新token
+  refreshToken: (data) => post('/merchant/auth/refresh', data)
 }
 
 // ============ 工作台 ============

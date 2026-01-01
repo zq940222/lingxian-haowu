@@ -57,8 +57,11 @@ export const refundApi = {
 export const groupApi = {
   getActivities: (params) => request({ url: '/admin/groups/activities', method: 'get', params }),
   getActivityDetail: (id) => request({ url: `/admin/groups/activities/${id}`, method: 'get' }),
+  createActivity: (data) => request({ url: '/admin/groups/activities', method: 'post', data }),
+  updateActivity: (id, data) => request({ url: `/admin/groups/activities/${id}`, method: 'put', data }),
   updateActivityStatus: (id, status) => request({ url: `/admin/groups/activities/${id}/status`, method: 'put', data: { status } }),
-  getRecords: (params) => request({ url: '/admin/groups/records', method: 'get', params })
+  getRecords: (params) => request({ url: '/admin/groups/records', method: 'get', params }),
+  getRecordDetail: (id) => request({ url: `/admin/groups/records/${id}`, method: 'get' })
 }
 
 // ============ 轮播图管理 ============
@@ -77,14 +80,19 @@ export const systemApi = {
   createAdmin: (data) => request({ url: '/admin/system/admins', method: 'post', data }),
   updateAdmin: (id, data) => request({ url: `/admin/system/admins/${id}`, method: 'put', data }),
   deleteAdmin: (id) => request({ url: `/admin/system/admins/${id}`, method: 'delete' }),
+  resetAdminPassword: (id) => request({ url: `/admin/system/admins/${id}/reset-password`, method: 'put' }),
   // 角色
   getRoles: () => request({ url: '/admin/system/roles', method: 'get' }),
   createRole: (data) => request({ url: '/admin/system/roles', method: 'post', data }),
   updateRole: (id, data) => request({ url: `/admin/system/roles/${id}`, method: 'put', data }),
   deleteRole: (id) => request({ url: `/admin/system/roles/${id}`, method: 'delete' }),
+  // 权限
+  getPermissions: () => request({ url: '/admin/system/permissions', method: 'get' }),
   // 系统配置
   getConfigs: () => request({ url: '/admin/system/configs', method: 'get' }),
-  updateConfigs: (data) => request({ url: '/admin/system/configs', method: 'put', data })
+  updateConfigs: (data) => request({ url: '/admin/system/configs', method: 'put', data }),
+  // 存储测试
+  testStorage: (data) => request({ url: '/admin/system/storage/test', method: 'post', data })
 }
 
 // ============ 统计数据 ============

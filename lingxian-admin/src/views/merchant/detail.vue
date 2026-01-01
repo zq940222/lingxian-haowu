@@ -27,12 +27,28 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { merchantApi } from '@/api'
 
 const route = useRoute()
 const merchantInfo = ref({})
+const loading = ref(false)
+
+const fetchMerchantDetail = async () => {
+  loading.value = true
+  try {
+    const res = await merchantApi.getDetail(route.params.id)
+    if (res.code === 200) {
+      merchantInfo.value = res.data || {}
+    }
+  } catch (e) {
+    console.error('获取商户详情失败:', e)
+  } finally {
+    loading.value = false
+  }
+}
 
 onMounted(() => {
-  // TODO: 根据 route.params.id 获取商户详情
+  fetchMerchantDetail()
 })
 </script>
 

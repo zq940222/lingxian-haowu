@@ -57,7 +57,7 @@
               <text class="original-price">¥{{ item.originalPrice }}</text>
             </view>
             <view class="group-tag">
-              <text>{{ item.groupCount }}人团</text>
+              <text>{{ item.groupSize }}人团</text>
             </view>
           </view>
         </view>
@@ -76,10 +76,10 @@
           :key="item.id"
           @click="goProductDetail(item.id)"
         >
-          <image class="product-image" :src="item.mainImage" mode="aspectFill" />
+          <image class="product-image" :src="item.image" mode="aspectFill" />
           <view class="info">
             <text class="name text-ellipsis-2">{{ item.name }}</text>
-            <text class="subtitle text-ellipsis">{{ item.subtitle }}</text>
+            <text class="subtitle text-ellipsis">{{ item.description }}</text>
             <view class="price-row">
               <text class="price">¥{{ item.price }}</text>
               <text class="original-price" v-if="item.originalPrice > item.price">
@@ -87,7 +87,7 @@
               </text>
             </view>
             <view class="action">
-              <text class="sales">已售{{ item.sales }}</text>
+              <text class="sales">已售{{ item.salesCount || 0 }}</text>
               <view class="add-cart" @click.stop="addToCart(item)">
                 <uni-icons type="cart" size="20" color="#fff" />
               </view>

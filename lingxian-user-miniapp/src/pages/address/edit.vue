@@ -301,7 +301,8 @@ const handleDelete = async () => {
   min-height: 100vh;
   background-color: #f5f5f5;
   padding: 20rpx;
-  padding-bottom: 200rpx;
+  padding-bottom: calc(200rpx + constant(safe-area-inset-bottom));
+  padding-bottom: calc(200rpx + env(safe-area-inset-bottom));
 }
 
 .form {

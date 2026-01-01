@@ -24,30 +24,68 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { merchantApi } from '@/api'
 
+const router = useRouter()
 const loading = ref(false)
 const tableData = ref([])
+const pagination = reactive({ page: 1, pageSize: 10, total: 0 })
 
 const fetchData = async () => {
   loading.value = true
-  setTimeout(() => { tableData.value = []; loading.value = false }, 500)
+  try {
+    const res = await merchantApi.getPendingList({
+      page: pagination.page,
+      size: pagination.pageSize
+    })
+    if (res.code === 200) {
+      tableData.value = res.data.records || []
+      pagination.total = res.data.total || 0
+    }
+  } catch (e) {
+    console.error('获取待审核商户列表失败:', e)
+  } finally {
+    loading.value = false
+  }
 }
 
 const handleApprove = async (row) => {
-  await ElMessageBox.confirm('确定通过该商户的入驻申请？', '提示')
-  ElMessage.success('审核通过')
-  fetchData()
+  const { value } = await ElMessageBox.prompt('请输入审核备注', '通过审核', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    inputPlaceholder: '选填'
+  })
+  try {
+    await merchantApi.verify(row.id, { verifyStatus: 2, remark: value })
+    ElMessage.success('审核通过')
+    fetchData()
+  } catch (e) {
+    ElMessage.error('操作失败')
+  }
 }
 
 const handleReject = async (row) => {
-  await ElMessageBox.confirm('确定拒绝该商户的入驻申请？', '提示', { type: 'warning' })
-  ElMessage.success('已拒绝')
-  fetchData()
+  const { value } = await ElMessageBox.prompt('请输入拒绝原因', '拒绝申请', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    inputPlaceholder: '请填写拒绝原因',
+    inputValidator: (val) => val ? true : '请输入拒绝原因'
+  })
+  try {
+    await merchantApi.verify(row.id, { verifyStatus: 3, remark: value })
+    ElMessage.success('已拒绝')
+    fetchData()
+  } catch (e) {
+    ElMessage.error('操作失败')
+  }
 }
 
-const handleView = () => {}
+const handleView = (row) => {
+  router.push(`/merchant/detail/${row.id}`)
+}
 
 onMounted(() => fetchData())
 </script>

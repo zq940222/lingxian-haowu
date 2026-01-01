@@ -27,12 +27,28 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { userApi } from '@/api'
 
 const route = useRoute()
 const userInfo = ref({})
+const loading = ref(false)
+
+const fetchUserDetail = async () => {
+  loading.value = true
+  try {
+    const res = await userApi.getDetail(route.params.id)
+    if (res.code === 200) {
+      userInfo.value = res.data || {}
+    }
+  } catch (e) {
+    console.error('获取用户详情失败:', e)
+  } finally {
+    loading.value = false
+  }
+}
 
 onMounted(() => {
-  // TODO: 根据 route.params.id 获取用户详情
+  fetchUserDetail()
 })
 </script>
 

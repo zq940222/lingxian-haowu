@@ -75,4 +75,32 @@ view, text, image {
   padding-bottom: constant(safe-area-inset-bottom);
   padding-bottom: env(safe-area-inset-bottom);
 }
+
+.safe-area-top {
+  padding-top: constant(safe-area-inset-top);
+  padding-top: env(safe-area-inset-top);
+}
+
+/* 底部固定栏安全区域 */
+.fixed-bottom {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding-bottom: constant(safe-area-inset-bottom);
+  padding-bottom: env(safe-area-inset-bottom);
+  background-color: #fff;
+  z-index: 100;
+}
+
+/* 底部占位，防止fixed元素遮挡内容 */
+.bottom-placeholder {
+  height: calc(100rpx + constant(safe-area-inset-bottom));
+  height: calc(100rpx + env(safe-area-inset-bottom));
+}
+
+/* 自定义导航栏状态栏占位 */
+.status-bar {
+  height: var(--status-bar-height, 44px);
+}
 </style>

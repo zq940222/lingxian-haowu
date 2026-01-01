@@ -56,6 +56,8 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { merchantApi } from '@/api'
 
 const router = useRouter()
 const loading = ref(false)
@@ -65,16 +67,37 @@ const pagination = reactive({ page: 1, pageSize: 10, total: 0 })
 
 const fetchData = async () => {
   loading.value = true
-  setTimeout(() => {
-    tableData.value = []
+  try {
+    const res = await merchantApi.getList({
+      page: pagination.page,
+      size: pagination.pageSize,
+      name: searchForm.name || undefined,
+      status: searchForm.status !== '' ? searchForm.status : undefined
+    })
+    if (res.code === 200) {
+      tableData.value = res.data.records || []
+      pagination.total = res.data.total || 0
+    }
+  } catch (e) {
+    console.error('获取商户列表失败:', e)
+  } finally {
     loading.value = false
-  }, 500)
+  }
 }
 
 const handleSearch = () => { pagination.page = 1; fetchData() }
 const handleReset = () => { searchForm.name = ''; searchForm.status = ''; handleSearch() }
 const handleView = (row) => router.push(`/merchant/detail/${row.id}`)
-const handleDelete = () => {}
+const handleDelete = async (row) => {
+  await ElMessageBox.confirm('确定要删除该商户吗？', '提示', { type: 'warning' })
+  try {
+    await merchantApi.updateStatus(row.id, -1)
+    ElMessage.success('删除成功')
+    fetchData()
+  } catch (e) {
+    ElMessage.error('删除失败')
+  }
+}
 
 onMounted(() => fetchData())
 </script>

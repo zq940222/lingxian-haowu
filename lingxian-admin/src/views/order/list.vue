@@ -58,6 +58,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { orderApi } from '@/api'
 
 const router = useRouter()
 const loading = ref(false)
@@ -65,12 +66,27 @@ const tableData = ref([])
 const searchForm = reactive({ orderNo: '', status: '' })
 const pagination = reactive({ page: 1, pageSize: 10, total: 0 })
 
-const statusLabels = ['待付款', '待发货', '配送中', '已完成', '已取消']
-const statusTypes = ['warning', 'primary', 'info', 'success', 'danger']
+const statusLabels = ['待付款', '待发货', '待收货', '已完成', '已取消', '退款中']
+const statusTypes = ['warning', 'primary', 'info', 'success', 'danger', 'warning']
 
 const fetchData = async () => {
   loading.value = true
-  setTimeout(() => { tableData.value = []; loading.value = false }, 500)
+  try {
+    const res = await orderApi.getList({
+      page: pagination.page,
+      size: pagination.pageSize,
+      orderNo: searchForm.orderNo || undefined,
+      status: searchForm.status !== '' ? searchForm.status : undefined
+    })
+    if (res.code === 200) {
+      tableData.value = res.data.records || []
+      pagination.total = res.data.total || 0
+    }
+  } catch (e) {
+    console.error('获取订单列表失败:', e)
+  } finally {
+    loading.value = false
+  }
 }
 
 const handleSearch = () => { pagination.page = 1; fetchData() }

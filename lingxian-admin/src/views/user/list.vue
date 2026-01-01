@@ -69,6 +69,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { userApi } from '@/api'
 
 const router = useRouter()
 const loading = ref(false)
@@ -87,11 +88,22 @@ const pagination = reactive({
 
 const fetchData = async () => {
   loading.value = true
-  // TODO: 调用API获取数据
-  setTimeout(() => {
-    tableData.value = []
+  try {
+    const res = await userApi.getList({
+      page: pagination.page,
+      size: pagination.pageSize,
+      nickname: searchForm.nickname || undefined,
+      phone: searchForm.phone || undefined
+    })
+    if (res.code === 200) {
+      tableData.value = res.data.records || []
+      pagination.total = res.data.total || 0
+    }
+  } catch (e) {
+    console.error('获取用户列表失败:', e)
+  } finally {
     loading.value = false
-  }, 500)
+  }
 }
 
 const handleSearch = () => {
@@ -112,8 +124,14 @@ const handleView = (row) => {
 const handleToggleStatus = async (row) => {
   const action = row.status === 1 ? '禁用' : '启用'
   await ElMessageBox.confirm(`确定要${action}该用户吗？`, '提示', { type: 'warning' })
-  ElMessage.success(`${action}成功`)
-  fetchData()
+  try {
+    const newStatus = row.status === 1 ? 0 : 1
+    await userApi.updateStatus(row.id, newStatus)
+    ElMessage.success(`${action}成功`)
+    fetchData()
+  } catch (e) {
+    ElMessage.error(`${action}失败`)
+  }
 }
 
 const handleSizeChange = () => fetchData()

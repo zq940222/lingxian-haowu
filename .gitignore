@@ -40,6 +40,13 @@ lingxian-admin/dist/
 # ============ 小程序 ============
 **/miniprogram_npm/
 **/.miniprogram/
+lingxian-user-miniapp/dist/
+lingxian-merchant-miniapp/dist/
+**/project.config.json
+**/project.private.config.json
+
+# ============ Windows ============
+nul
 
 # ============ 系统文件 ============
 .DS_Store

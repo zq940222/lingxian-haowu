@@ -135,7 +135,8 @@ const goAdd = () => {
   min-height: 100vh;
   background-color: #f5f5f5;
   padding: 20rpx;
-  padding-bottom: 140rpx;
+  padding-bottom: calc(140rpx + constant(safe-area-inset-bottom));
+  padding-bottom: calc(140rpx + env(safe-area-inset-bottom));
 }
 
 .address-list {

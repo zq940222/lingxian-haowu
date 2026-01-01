@@ -45,8 +45,8 @@
       </view>
 
       <!-- 协议 -->
-      <view class="agreement">
-        <view class="checkbox" @click="agreed = !agreed">
+      <view class="agreement" @tap="toggleAgreed">
+        <view class="checkbox">
           <uni-icons
             :type="agreed ? 'checkbox-filled' : 'circle'"
             :color="agreed ? '#1890ff' : '#ccc'"
@@ -54,9 +54,9 @@
           />
         </view>
         <text>登录即表示同意</text>
-        <text class="link">《用户协议》</text>
+        <text class="link" @tap.stop="showUserAgreement">《用户协议》</text>
         <text>和</text>
-        <text class="link">《隐私政策》</text>
+        <text class="link" @tap.stop="showPrivacyPolicy">《隐私政策》</text>
       </view>
     </view>
   </view>
@@ -64,13 +64,47 @@
 
 <script setup>
 import { ref } from 'vue'
-import { useMerchantStore } from '@/store/merchant'
+import { useMerchantStore, VerifyStatus } from '@/store/merchant'
 
 const merchantStore = useMerchantStore()
 
 const phone = ref('')
 const password = ref('')
 const agreed = ref(false)
+
+// 切换协议同意状态
+const toggleAgreed = () => {
+  agreed.value = !agreed.value
+}
+
+// 显示用户协议
+const showUserAgreement = () => {
+  uni.showModal({
+    title: '用户协议',
+    content: '用户协议内容...',
+    showCancel: false
+  })
+}
+
+// 显示隐私政策
+const showPrivacyPolicy = () => {
+  uni.showModal({
+    title: '隐私政策',
+    content: '隐私政策内容...',
+    showCancel: false
+  })
+}
+
+// 根据审核状态跳转
+const navigateByStatus = (verifyStatus) => {
+  if (verifyStatus === VerifyStatus.APPROVED) {
+    // 审核通过，进入工作台
+    uni.switchTab({ url: '/pages/index/index' })
+  } else {
+    // 未通过审核（未提交、待审核、被拒绝），进入申请状态页
+    uni.redirectTo({ url: '/pages/apply/status' })
+  }
+}
 
 // 账号密码登录
 const handleLogin = async () => {
@@ -91,11 +125,11 @@ const handleLogin = async () => {
 
   try {
     uni.showLoading({ title: '登录中...' })
-    await merchantStore.login(phone.value, password.value)
+    const data = await merchantStore.login(phone.value, password.value)
     uni.hideLoading()
     uni.showToast({ title: '登录成功', icon: 'success' })
     setTimeout(() => {
-      uni.switchTab({ url: '/pages/index/index' })
+      navigateByStatus(data.verifyStatus)
     }, 1500)
   } catch (e) {
     uni.hideLoading()
@@ -112,11 +146,11 @@ const handleWxLogin = async () => {
 
   try {
     uni.showLoading({ title: '登录中...' })
-    await merchantStore.wxLogin()
+    const data = await merchantStore.wxLogin()
     uni.hideLoading()
     uni.showToast({ title: '登录成功', icon: 'success' })
     setTimeout(() => {
-      uni.switchTab({ url: '/pages/index/index' })
+      navigateByStatus(data.verifyStatus)
     }, 1500)
   } catch (e) {
     uni.hideLoading()
@@ -250,13 +284,16 @@ const handleWxLogin = async () => {
   margin-top: 40rpx;
   font-size: 24rpx;
   color: #999;
+  padding: 20rpx;
 
   .checkbox {
     margin-right: 8rpx;
+    padding: 10rpx;
   }
 
   .link {
     color: $primary-color;
+    padding: 10rpx 0;
   }
 }
 </style>

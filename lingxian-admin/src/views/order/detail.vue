@@ -35,12 +35,28 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { orderApi } from '@/api'
 
 const route = useRoute()
 const orderInfo = ref({})
+const loading = ref(false)
+
+const fetchOrderDetail = async () => {
+  loading.value = true
+  try {
+    const res = await orderApi.getDetail(route.params.id)
+    if (res.code === 200) {
+      orderInfo.value = res.data || {}
+    }
+  } catch (e) {
+    console.error('获取订单详情失败:', e)
+  } finally {
+    loading.value = false
+  }
+}
 
 onMounted(() => {
-  // TODO: 根据 route.params.id 获取订单详情
+  fetchOrderDetail()
 })
 </script>
 

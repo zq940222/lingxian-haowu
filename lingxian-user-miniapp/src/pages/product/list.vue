@@ -56,17 +56,17 @@
           :key="item.id"
           @click="goDetail(item.id)"
         >
-          <image :src="item.mainImage" mode="aspectFill" class="product-image" />
+          <image :src="item.image" mode="aspectFill" class="product-image" />
           <view class="product-info">
             <text class="name">{{ item.name }}</text>
-            <text class="subtitle">{{ item.subtitle }}</text>
+            <text class="subtitle">{{ item.description }}</text>
             <view class="price-row">
               <text class="price">¥{{ item.price }}</text>
               <text class="original-price" v-if="item.originalPrice > item.price">
                 ¥{{ item.originalPrice }}
               </text>
             </view>
-            <view class="sales">已售{{ item.sales || 0 }}</view>
+            <view class="sales">已售{{ item.salesCount || 0 }}</view>
           </view>
         </view>
       </view>
@@ -135,7 +135,7 @@ const loadList = async (refresh = false) => {
 
     const res = await productApi.getList(params)
     if (res.code === 200) {
-      const list = res.data.list || []
+      const list = res.data.records || []
       if (refresh) {
         productList.value = list
       } else {

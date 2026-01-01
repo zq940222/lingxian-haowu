@@ -52,9 +52,14 @@
         </view>
 
         <view class="order-address" @click="goDetail(order.id)">
-          <uni-icons type="location" size="16" color="#999" />
-          <text class="text-ellipsis">{{ order.receiverName }} {{ order.receiverPhone }}</text>
-          <text class="text-ellipsis">{{ order.receiverAddress }}</text>
+          <uni-icons type="location" size="16" color="#1890ff" />
+          <view class="address-detail">
+            <view class="receiver">
+              <text class="name">{{ order.receiverName }}</text>
+              <text class="phone">{{ order.receiverPhone }}</text>
+            </view>
+            <text class="address">{{ order.receiverAddress }}</text>
+          </view>
         </view>
 
         <view class="order-footer">
@@ -343,6 +348,7 @@ const openNavigation = (order) => {
 .order-list {
   flex: 1;
   padding: 20rpx;
+  box-sizing: border-box;
 }
 
 .order-item {
@@ -445,14 +451,42 @@ const openNavigation = (order) => {
 
   .order-address {
     display: flex;
-    align-items: center;
-    padding: 16rpx 24rpx;
+    align-items: flex-start;
+    padding: 20rpx 24rpx;
     background-color: #f8f8f8;
     font-size: 24rpx;
     color: #666;
 
-    text {
-      margin-left: 8rpx;
+    .address-detail {
+      flex: 1;
+      margin-left: 12rpx;
+      overflow: hidden;
+
+      .receiver {
+        display: flex;
+        align-items: center;
+        margin-bottom: 8rpx;
+
+        .name {
+          font-size: 28rpx;
+          font-weight: bold;
+          color: #333;
+          margin-right: 16rpx;
+        }
+
+        .phone {
+          font-size: 26rpx;
+          color: #666;
+        }
+      }
+
+      .address {
+        display: block;
+        font-size: 26rpx;
+        color: #666;
+        line-height: 1.4;
+        word-break: break-all;
+      }
     }
   }
 

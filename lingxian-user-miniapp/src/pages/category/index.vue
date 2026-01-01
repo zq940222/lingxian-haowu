@@ -42,10 +42,10 @@
           :key="item.id"
           @click="goDetail(item.id)"
         >
-          <image class="product-image" :src="item.mainImage" mode="aspectFill" />
+          <image class="product-image" :src="item.image" mode="aspectFill" />
           <view class="product-info">
             <text class="name text-ellipsis-2">{{ item.name }}</text>
-            <text class="spec">{{ item.spec || item.unit }}</text>
+            <text class="spec">{{ item.unit }}</text>
             <view class="bottom">
               <view class="price-row">
                 <text class="price">¥{{ item.price }}</text>

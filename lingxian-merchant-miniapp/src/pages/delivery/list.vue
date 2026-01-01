@@ -52,66 +52,78 @@
       @refresherrefresh="onRefresh"
     >
       <view class="order-item" v-for="order in orders" :key="order.id">
-        <!-- 选择框 -->
-        <view class="checkbox" v-if="currentTab === 'pending'" @click="toggleSelect(order.id)">
-          <uni-icons
-            :type="selectedIds.includes(order.id) ? 'checkbox-filled' : 'circle'"
-            :color="selectedIds.includes(order.id) ? '#1890ff' : '#ccc'"
-            size="22"
-          />
-        </view>
-
-        <view class="order-content" @click="goDetail(order.id)">
+        <view class="order-main">
+          <!-- 头部：订单号、时间、复选框 -->
           <view class="order-header">
-            <text class="order-no">{{ order.orderNo }}</text>
+            <view class="header-left">
+              <!-- 选择框 -->
+              <view class="checkbox" v-if="currentTab === 'pending'" @click.stop="toggleSelect(order.id)">
+                <uni-icons
+                  :type="selectedIds.includes(order.id) ? 'checkbox-filled' : 'circle'"
+                  :color="selectedIds.includes(order.id) ? '#1890ff' : '#ccc'"
+                  size="20"
+                />
+              </view>
+              <text class="order-no">{{ order.orderNo }}</text>
+            </view>
             <text class="time">{{ order.createTime }}</text>
           </view>
 
-          <view class="address-info">
-            <uni-icons type="location" size="16" color="#1890ff" />
-            <view class="address-detail">
-              <view class="receiver">
-                <text class="name">{{ order.receiverName }}</text>
-                <text class="phone">{{ order.receiverPhone }}</text>
+          <view class="order-body" @click="goDetail(order.id)">
+            <view class="address-info">
+              <uni-icons type="location" size="16" color="#1890ff" />
+              <view class="address-detail">
+                <view class="receiver">
+                  <text class="name">{{ order.receiverName }}</text>
+                  <text class="phone">{{ order.receiverPhone }}</text>
+                </view>
+                <text class="address">{{ order.receiverAddress }}</text>
               </view>
-              <text class="address">{{ order.receiverAddress }}</text>
+            </view>
+
+            <view class="products-summary">
+              <text>共{{ order.totalQuantity }}件商品</text>
+              <text class="amount">¥{{ order.payAmount }}</text>
+            </view>
+
+            <view class="delivery-time" v-if="order.deliveryTime">
+              <uni-icons type="calendar" size="14" color="#fa8c16" />
+              <text>预约配送：{{ order.deliveryTime }}</text>
             </view>
           </view>
 
-          <view class="products-summary">
-            <text>共{{ order.totalQuantity }}件商品</text>
-            <text class="amount">¥{{ order.payAmount }}</text>
+          <!-- 底部操作按钮 -->
+          <view class="order-actions">
+            <!-- 待配送 -->
+            <template v-if="currentTab === 'pending'">
+              <view class="action-btn primary" @click.stop="startDelivery(order)">
+                <uni-icons type="car" size="18" color="#fff" />
+                <text>开始配送</text>
+              </view>
+            </template>
+            <!-- 配送中 -->
+            <template v-else-if="currentTab === 'delivering'">
+              <view class="action-btn default" @click.stop="openNavigation(order)">
+                <uni-icons type="navigate" size="18" color="#666" />
+                <text>导航</text>
+              </view>
+              <view class="action-btn default" @click.stop="callCustomer(order)">
+                <uni-icons type="phone" size="18" color="#666" />
+                <text>电话</text>
+              </view>
+              <view class="action-btn primary" @click.stop="completeDelivery(order)">
+                <uni-icons type="checkbox" size="18" color="#fff" />
+                <text>完成配送</text>
+              </view>
+            </template>
+            <!-- 已完成 -->
+            <template v-else-if="currentTab === 'completed'">
+              <view class="status-tag completed">
+                <uni-icons type="checkbox-filled" size="16" color="#52c41a" />
+                <text>已完成</text>
+              </view>
+            </template>
           </view>
-
-          <view class="delivery-time" v-if="order.deliveryTime">
-            <uni-icons type="calendar" size="14" color="#fa8c16" />
-            <text>预约配送：{{ order.deliveryTime }}</text>
-          </view>
-        </view>
-
-        <view class="order-actions">
-          <!-- 待配送 -->
-          <template v-if="currentTab === 'pending'">
-            <view class="action-btn primary" @click.stop="startDelivery(order)">
-              <uni-icons type="car" size="16" color="#fff" />
-              <text>开始配送</text>
-            </view>
-          </template>
-          <!-- 配送中 -->
-          <template v-else-if="currentTab === 'delivering'">
-            <view class="action-btn default" @click.stop="openNavigation(order)">
-              <uni-icons type="navigate" size="16" color="#666" />
-              <text>导航</text>
-            </view>
-            <view class="action-btn default" @click.stop="callCustomer(order)">
-              <uni-icons type="phone" size="16" color="#666" />
-              <text>电话</text>
-            </view>
-            <view class="action-btn primary" @click.stop="completeDelivery(order)">
-              <uni-icons type="checkbox" size="16" color="#fff" />
-              <text>完成</text>
-            </view>
-          </template>
         </view>
       </view>
 
@@ -429,34 +441,43 @@ const callCustomer = (order) => {
 .order-list {
   flex: 1;
   padding: 20rpx;
+  box-sizing: border-box;
 }
 
 .order-item {
-  display: flex;
   background-color: #fff;
   border-radius: $border-radius-lg;
   margin-bottom: 20rpx;
   overflow: hidden;
 
-  .checkbox {
-    display: flex;
-    align-items: center;
-    padding: 0 20rpx;
-    background-color: #fafafa;
-  }
-
-  .order-content {
-    flex: 1;
+  .order-main {
     padding: 24rpx;
 
     .order-header {
       display: flex;
       justify-content: space-between;
+      align-items: center;
       margin-bottom: 16rpx;
+      padding-bottom: 16rpx;
+      border-bottom: 1rpx solid #f0f0f0;
 
-      .order-no {
-        font-size: 24rpx;
-        color: #999;
+      .header-left {
+        display: flex;
+        align-items: center;
+
+        .checkbox {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 48rpx;
+          height: 48rpx;
+          margin-right: 12rpx;
+        }
+
+        .order-no {
+          font-size: 24rpx;
+          color: #999;
+        }
       }
 
       .time {
@@ -465,101 +486,127 @@ const callCustomer = (order) => {
       }
     }
 
-    .address-info {
-      display: flex;
-      margin-bottom: 16rpx;
+    .order-body {
+      .address-info {
+        display: flex;
+        align-items: flex-start;
+        margin-bottom: 16rpx;
 
-      .address-detail {
-        flex: 1;
-        margin-left: 10rpx;
+        .address-detail {
+          flex: 1;
+          margin-left: 10rpx;
+          overflow: hidden;
 
-        .receiver {
-          .name {
-            font-size: 30rpx;
-            font-weight: bold;
-            color: #333;
-            margin-right: 16rpx;
+          .receiver {
+            display: flex;
+            align-items: center;
+
+            .name {
+              font-size: 30rpx;
+              font-weight: bold;
+              color: #333;
+              margin-right: 16rpx;
+            }
+
+            .phone {
+              font-size: 26rpx;
+              color: #666;
+            }
           }
 
-          .phone {
+          .address {
             font-size: 26rpx;
+            color: #666;
+            margin-top: 8rpx;
+            display: block;
+            line-height: 1.4;
+            word-break: break-all;
+          }
+        }
+      }
+
+      .products-summary {
+        display: flex;
+        justify-content: space-between;
+        font-size: 26rpx;
+        color: #666;
+        padding: 12rpx 0;
+        border-top: 1rpx solid #f0f0f0;
+
+        .amount {
+          color: $danger-color;
+          font-weight: bold;
+        }
+      }
+
+      .delivery-time {
+        display: flex;
+        align-items: center;
+        margin-top: 12rpx;
+        padding: 10rpx 16rpx;
+        background-color: #fff7e6;
+        border-radius: 8rpx;
+
+        text {
+          font-size: 24rpx;
+          color: #fa8c16;
+          margin-left: 8rpx;
+        }
+      }
+    }
+
+    .order-actions {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      margin-top: 20rpx;
+      padding-top: 20rpx;
+      border-top: 1rpx solid #f0f0f0;
+      gap: 16rpx;
+
+      .action-btn {
+        display: flex;
+        align-items: center;
+        padding: 14rpx 28rpx;
+        border-radius: 32rpx;
+
+        text {
+          font-size: 26rpx;
+          margin-left: 8rpx;
+        }
+
+        &.default {
+          background-color: #f5f5f5;
+          border: 1rpx solid #e0e0e0;
+
+          text {
             color: #666;
           }
         }
 
-        .address {
-          font-size: 26rpx;
-          color: #666;
-          margin-top: 8rpx;
-          display: block;
-        }
-      }
-    }
+        &.primary {
+          background-color: $primary-color;
 
-    .products-summary {
-      display: flex;
-      justify-content: space-between;
-      font-size: 26rpx;
-      color: #666;
-      padding: 12rpx 0;
-      border-top: 1rpx solid #f0f0f0;
-
-      .amount {
-        color: $danger-color;
-        font-weight: bold;
-      }
-    }
-
-    .delivery-time {
-      display: flex;
-      align-items: center;
-      margin-top: 12rpx;
-      padding: 10rpx 16rpx;
-      background-color: #fff7e6;
-      border-radius: 8rpx;
-
-      text {
-        font-size: 24rpx;
-        color: #fa8c16;
-        margin-left: 8rpx;
-      }
-    }
-  }
-
-  .order-actions {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    padding: 0 16rpx;
-    background-color: #fafafa;
-
-    .action-btn {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 16rpx 20rpx;
-      border-radius: 8rpx;
-      margin: 8rpx 0;
-
-      text {
-        font-size: 22rpx;
-        margin-top: 6rpx;
-      }
-
-      &.default {
-        background-color: #fff;
-        border: 1rpx solid #e0e0e0;
-
-        text {
-          color: #666;
+          text {
+            color: #fff;
+          }
         }
       }
 
-      &.primary {
-        background-color: $primary-color;
+      .status-tag {
+        display: flex;
+        align-items: center;
+        padding: 10rpx 20rpx;
+        border-radius: 8rpx;
 
-        text {
-          color: #fff;
+        &.completed {
+          background-color: #f6ffed;
+
+          text {
+            font-size: 26rpx;
+            color: #52c41a;
+            margin-left: 8rpx;
+          }
         }
       }
     }

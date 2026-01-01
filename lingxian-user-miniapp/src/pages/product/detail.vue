@@ -19,11 +19,10 @@
         </view>
       </view>
       <text class="name">{{ product.name }}</text>
-      <text class="subtitle">{{ product.subtitle }}</text>
+      <text class="subtitle">{{ product.description }}</text>
       <view class="tags">
-        <text class="tag">{{ product.unit }}</text>
-        <text class="tag" v-if="product.spec">{{ product.spec }}</text>
-        <text class="tag">已售{{ product.sales }}</text>
+        <text class="tag" v-if="product.unit">{{ product.unit }}</text>
+        <text class="tag">已售{{ product.sales || 0 }}</text>
       </view>
     </view>
 
@@ -43,8 +42,8 @@
     <!-- 商品详情 -->
     <view class="detail-section">
       <view class="section-title">商品详情</view>
-      <view class="description" v-if="product.description">
-        <rich-text :nodes="product.description"></rich-text>
+      <view class="description" v-if="product.detail">
+        <rich-text :nodes="product.detail"></rich-text>
       </view>
       <view class="empty-desc" v-else>
         <text>暂无商品详情</text>
@@ -74,7 +73,7 @@
     <uni-popup ref="quantityPopup" type="bottom">
       <view class="quantity-popup">
         <view class="popup-header">
-          <image :src="product.mainImage" mode="aspectFill" />
+          <image :src="product.mainImage || product.image" mode="aspectFill" />
           <view class="info">
             <text class="price">¥{{ product.price }}</text>
             <text class="stock">库存：{{ product.stock }}</text>
@@ -125,10 +124,10 @@ const images = computed(() => {
     try {
       return JSON.parse(product.value.images)
     } catch (e) {
-      return [product.value.mainImage]
+      return [product.value.mainImage || product.value.image]
     }
   }
-  return [product.value.mainImage]
+  return [product.value.mainImage || product.value.image]
 })
 
 onLoad((options) => {
@@ -242,7 +241,8 @@ const confirmAction = async () => {
 
 <style lang="scss" scoped>
 .container {
-  padding-bottom: 120rpx;
+  padding-bottom: calc(120rpx + constant(safe-area-inset-bottom));
+  padding-bottom: calc(120rpx + env(safe-area-inset-bottom));
   background-color: #f5f5f5;
 }
 
@@ -531,7 +531,9 @@ const confirmAction = async () => {
   }
 
   .popup-footer {
-    padding: 20rpx 30rpx 40rpx;
+    padding: 20rpx 30rpx;
+    padding-bottom: calc(40rpx + constant(safe-area-inset-bottom));
+    padding-bottom: calc(40rpx + env(safe-area-inset-bottom));
 
     .confirm-btn {
       height: 88rpx;

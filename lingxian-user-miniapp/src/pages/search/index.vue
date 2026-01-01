@@ -72,7 +72,7 @@
           <text class="shop">{{ item.shopName }}</text>
           <view class="bottom">
             <text class="price">¥{{ item.price }}</text>
-            <text class="sales">已售{{ item.sales || 0 }}</text>
+            <text class="sales">已售{{ item.salesCount || 0 }}</text>
           </view>
         </view>
       </view>

@@ -310,7 +310,8 @@ const goBack = () => {
 .container {
   min-height: 100vh;
   background-color: #f5f5f5;
-  padding-bottom: 140rpx;
+  padding-bottom: calc(140rpx + constant(safe-area-inset-bottom));
+  padding-bottom: calc(140rpx + env(safe-area-inset-bottom));
 }
 
 .form {

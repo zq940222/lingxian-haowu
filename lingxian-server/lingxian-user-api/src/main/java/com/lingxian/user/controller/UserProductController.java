@@ -1,15 +1,22 @@
 package com.lingxian.user.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.lingxian.common.entity.GroupActivity;
+import com.lingxian.common.entity.Product;
 import com.lingxian.common.result.Result;
+import com.lingxian.common.service.GroupActivityService;
+import com.lingxian.common.service.ProductService;
+import com.lingxian.common.util.ImageUrlUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
+import java.time.LocalDateTime;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -19,32 +26,31 @@ import java.util.Map;
 @Tag(name = "用户端-商品", description = "商品相关接口")
 public class UserProductController {
 
+    private final ProductService productService;
+    private final GroupActivityService groupActivityService;
+    private final ImageUrlUtil imageUrlUtil;
+
     @GetMapping("/recommend")
     @Operation(summary = "获取推荐商品")
     public Result<Map<String, Object>> getRecommendProducts(
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer pageSize) {
 
+        Page<Product> pageResult = productService.page(
+                new Page<>(page, pageSize),
+                new LambdaQueryWrapper<Product>()
+                        .eq(Product::getStatus, 1)
+                        .eq(Product::getIsRecommend, 1)
+                        .orderByDesc(Product::getSalesCount)
+                        .orderByDesc(Product::getCreateTime)
+        );
+
+        // 处理商品图片URL
+        pageResult.getRecords().forEach(this::processProductImageUrls);
+
         Map<String, Object> result = new HashMap<>();
-        List<Map<String, Object>> products = new ArrayList<>();
-
-        // 临时 mock 数据
-        for (int i = 1; i <= pageSize; i++) {
-            int id = (page - 1) * pageSize + i;
-            Map<String, Object> product = new HashMap<>();
-            product.put("id", id);
-            product.put("name", "推荐商品" + id);
-            product.put("subtitle", "新鲜直达，品质保证");
-            product.put("price", 9.9 + id % 10);
-            product.put("originalPrice", 19.9 + id % 10);
-            product.put("mainImage", "https://via.placeholder.com/200x200");
-            product.put("sales", 100 + id * 10);
-            product.put("stock", 999);
-            products.add(product);
-        }
-
-        result.put("list", products);
-        result.put("total", 100);
+        result.put("records", pageResult.getRecords());
+        result.put("total", pageResult.getTotal());
         result.put("page", page);
         result.put("pageSize", pageSize);
 
@@ -61,26 +67,46 @@ public class UserProductController {
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer pageSize) {
 
-        Map<String, Object> result = new HashMap<>();
-        List<Map<String, Object>> products = new ArrayList<>();
+        LambdaQueryWrapper<Product> queryWrapper = new LambdaQueryWrapper<Product>()
+                .eq(Product::getStatus, 1);
 
-        // 临时 mock 数据
-        for (int i = 1; i <= pageSize; i++) {
-            int id = (page - 1) * pageSize + i;
-            Map<String, Object> product = new HashMap<>();
-            product.put("id", id);
-            product.put("name", keyword != null ? keyword + "商品" + id : "商品" + id);
-            product.put("subtitle", "优质好货");
-            product.put("price", 9.9 + id % 20);
-            product.put("originalPrice", 19.9 + id % 20);
-            product.put("mainImage", "https://via.placeholder.com/200x200");
-            product.put("sales", 50 + id * 5);
-            product.put("stock", 999);
-            products.add(product);
+        // 分类筛选
+        if (categoryId != null) {
+            queryWrapper.eq(Product::getCategoryId, categoryId);
         }
 
-        result.put("list", products);
-        result.put("total", 50);
+        // 关键词搜索
+        if (StringUtils.hasText(keyword)) {
+            queryWrapper.like(Product::getName, keyword);
+        }
+
+        // 排序
+        switch (sortType) {
+            case "sales":
+                queryWrapper.orderByDesc(Product::getSalesCount);
+                break;
+            case "price":
+                if ("desc".equals(priceOrder)) {
+                    queryWrapper.orderByDesc(Product::getPrice);
+                } else {
+                    queryWrapper.orderByAsc(Product::getPrice);
+                }
+                break;
+            case "new":
+                queryWrapper.orderByDesc(Product::getCreateTime);
+                break;
+            default:
+                queryWrapper.orderByDesc(Product::getSort).orderByDesc(Product::getCreateTime);
+        }
+
+        Page<Product> pageResult = productService.page(new Page<>(page, pageSize), queryWrapper);
+
+        // 处理商品图片URL
+        pageResult.getRecords().forEach(this::processProductImageUrls);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("records", pageResult.getRecords());
+        result.put("total", pageResult.getTotal());
         result.put("page", page);
         result.put("pageSize", pageSize);
 
@@ -90,22 +116,56 @@ public class UserProductController {
     @GetMapping("/{id}")
     @Operation(summary = "获取商品详情")
     public Result<Map<String, Object>> getProductDetail(@PathVariable Long id) {
-        Map<String, Object> product = new HashMap<>();
-        product.put("id", id);
-        product.put("name", "商品" + id);
-        product.put("subtitle", "新鲜直达，品质保证");
-        product.put("price", 19.9);
-        product.put("originalPrice", 29.9);
-        product.put("groupPrice", 15.9);
-        product.put("groupEnabled", true);
-        product.put("mainImage", "https://via.placeholder.com/400x400");
-        product.put("images", "[\"https://via.placeholder.com/400x400\",\"https://via.placeholder.com/400x400\"]");
-        product.put("description", "<p>商品详情描述</p>");
-        product.put("sales", 500);
-        product.put("stock", 999);
-        product.put("unit", "份");
-        product.put("spec", "500g");
+        Product product = productService.getById(id);
+        if (product == null || product.getStatus() != 1) {
+            return Result.failed("商品不存在或已下架");
+        }
 
-        return Result.success(product);
+        Map<String, Object> result = new HashMap<>();
+        result.put("id", product.getId());
+        result.put("name", product.getName());
+        result.put("description", product.getDescription());
+        result.put("price", product.getPrice());
+        result.put("originalPrice", product.getOriginalPrice());
+        // 处理图片URL
+        result.put("mainImage", imageUrlUtil.generateUrl(product.getImage()));
+        result.put("image", imageUrlUtil.generateUrl(product.getImage()));
+        result.put("images", imageUrlUtil.generateUrlsFromJson(product.getImages()));
+        result.put("detail", product.getDetail());
+        result.put("sales", product.getSalesCount());
+        result.put("salesCount", product.getSalesCount());
+        result.put("stock", product.getStock());
+        result.put("unit", product.getUnit());
+        result.put("categoryId", product.getCategoryId());
+        result.put("merchantId", product.getMerchantId());
+
+        // 查询是否有进行中的拼团活动
+        LocalDateTime now = LocalDateTime.now();
+        GroupActivity groupActivity = groupActivityService.getOne(new LambdaQueryWrapper<GroupActivity>()
+                .eq(GroupActivity::getProductId, id)
+                .eq(GroupActivity::getStatus, 1)
+                .le(GroupActivity::getStartTime, now)
+                .ge(GroupActivity::getEndTime, now)
+                .last("LIMIT 1"));
+
+        if (groupActivity != null) {
+            result.put("groupEnabled", true);
+            result.put("groupPrice", groupActivity.getGroupPrice());
+            result.put("groupSize", groupActivity.getGroupSize());
+            result.put("groupActivityId", groupActivity.getId());
+        } else {
+            result.put("groupEnabled", false);
+        }
+
+        return Result.success(result);
+    }
+
+    /**
+     * 处理商品图片URL
+     */
+    private void processProductImageUrls(Product product) {
+        product.setImage(imageUrlUtil.generateUrl(product.getImage()));
+        product.setImages(imageUrlUtil.generateUrlsFromJson(product.getImages()));
+        product.setVideo(imageUrlUtil.generateUrl(product.getVideo()));
     }
 }

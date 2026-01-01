@@ -1,13 +1,19 @@
 package com.lingxian.user.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.lingxian.common.entity.Category;
+import com.lingxian.common.entity.Product;
 import com.lingxian.common.result.Result;
+import com.lingxian.common.service.CategoryService;
+import com.lingxian.common.service.ProductService;
+import com.lingxian.common.util.ImageUrlUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,21 +25,17 @@ import java.util.Map;
 @Tag(name = "用户端-分类", description = "分类相关接口")
 public class UserCategoryController {
 
+    private final CategoryService categoryService;
+    private final ProductService productService;
+    private final ImageUrlUtil imageUrlUtil;
+
     @GetMapping
     @Operation(summary = "获取分类列表")
-    public Result<List<Map<String, Object>>> getCategories() {
-        List<Map<String, Object>> categories = new ArrayList<>();
-        String[] names = {"蔬菜", "水果", "肉类", "海鲜", "蛋奶", "粮油", "零食", "饮料"};
-
-        for (int i = 0; i < names.length; i++) {
-            Map<String, Object> cat = new HashMap<>();
-            cat.put("id", i + 1);
-            cat.put("name", names[i]);
-            cat.put("icon", "https://via.placeholder.com/80x80");
-            cat.put("sort", i);
-            categories.add(cat);
-        }
-
+    public Result<List<Category>> getCategories() {
+        // 获取分类树形结构
+        List<Category> categories = categoryService.getTreeList();
+        // 递归处理分类图片URL
+        processCategoryImageUrls(categories);
         return Result.success(categories);
     }
 
@@ -44,26 +46,50 @@ public class UserCategoryController {
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer pageSize) {
 
+        Page<Product> pageResult = productService.page(
+                new Page<>(page, pageSize),
+                new LambdaQueryWrapper<Product>()
+                        .eq(Product::getCategoryId, categoryId)
+                        .eq(Product::getStatus, 1)
+                        .orderByDesc(Product::getSort)
+                        .orderByDesc(Product::getCreateTime)
+        );
+
+        // 处理商品图片URL
+        pageResult.getRecords().forEach(this::processProductImageUrls);
+
         Map<String, Object> result = new HashMap<>();
-        List<Map<String, Object>> products = new ArrayList<>();
-
-        for (int i = 1; i <= pageSize; i++) {
-            int id = (page - 1) * pageSize + i;
-            Map<String, Object> product = new HashMap<>();
-            product.put("id", id);
-            product.put("name", "分类" + categoryId + "-商品" + id);
-            product.put("price", 9.9 + id % 10);
-            product.put("originalPrice", 19.9 + id % 10);
-            product.put("mainImage", "https://via.placeholder.com/200x200");
-            product.put("sales", 100 + id * 10);
-            products.add(product);
-        }
-
-        result.put("list", products);
-        result.put("total", 30);
+        result.put("records", pageResult.getRecords());
+        result.put("total", pageResult.getTotal());
         result.put("page", page);
         result.put("pageSize", pageSize);
 
         return Result.success(result);
+    }
+
+    /**
+     * 递归处理分类图片URL
+     */
+    private void processCategoryImageUrls(List<Category> categories) {
+        if (categories == null || categories.isEmpty()) {
+            return;
+        }
+        for (Category category : categories) {
+            category.setIcon(imageUrlUtil.generateUrl(category.getIcon()));
+            category.setImage(imageUrlUtil.generateUrl(category.getImage()));
+            // 递归处理子分类
+            if (category.getChildren() != null && !category.getChildren().isEmpty()) {
+                processCategoryImageUrls(category.getChildren());
+            }
+        }
+    }
+
+    /**
+     * 处理商品图片URL
+     */
+    private void processProductImageUrls(Product product) {
+        product.setImage(imageUrlUtil.generateUrl(product.getImage()));
+        product.setImages(imageUrlUtil.generateUrlsFromJson(product.getImages()));
+        product.setVideo(imageUrlUtil.generateUrl(product.getVideo()));
     }
 }
