@@ -31,9 +31,10 @@ public class UserOrderController {
     private final OrderService orderService;
     private final OrderItemService orderItemService;
     private final ProductService productService;
-    private final AddressService addressService;
+    private final UserAddressService userAddressService;
     private final CartService cartService;
     private final MerchantService merchantService;
+    private final ProductCommentService productCommentService;
     private final ImageUrlUtil imageUrlUtil;
 
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -162,7 +163,7 @@ public class UserOrderController {
             }
 
             // 验证收货地址
-            Address address = addressService.getById(addressId);
+            UserAddress address = userAddressService.getById(addressId);
             if (address == null || !address.getUserId().equals(userId)) {
                 return Result.failed("收货地址不存在");
             }
@@ -234,7 +235,7 @@ public class UserOrderController {
             order.setReceiverProvince(address.getProvince());
             order.setReceiverCity(address.getCity());
             order.setReceiverDistrict(address.getDistrict());
-            order.setReceiverAddress(address.getAddress());
+            order.setReceiverAddress(address.getDetail());
 
             order.setCreateTime(LocalDateTime.now());
             order.setUpdateTime(LocalDateTime.now());
@@ -433,14 +434,111 @@ public class UserOrderController {
             return Result.failed("当前订单状态不允许评价");
         }
 
-        // TODO: 保存评价
+        // 获取评价内容
+        String content = (String) body.get("content");
+        @SuppressWarnings("unchecked")
+        List<String> images = (List<String>) body.get("images");
+        Integer isAnonymous = body.get("isAnonymous") != null ?
+                Integer.parseInt(body.get("isAnonymous").toString()) : 0;
 
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> items = (List<Map<String, Object>>) body.get("items");
+
+        // 保存评价
+        if (items != null && !items.isEmpty()) {
+            String imagesJson = images != null && !images.isEmpty() ?
+                    String.join(",", images) : null;
+
+            for (Map<String, Object> item : items) {
+                Long orderItemId = item.get("orderItemId") != null ?
+                        Long.parseLong(item.get("orderItemId").toString()) : null;
+                Long productId = item.get("productId") != null ?
+                        Long.parseLong(item.get("productId").toString()) : null;
+                Integer rating = item.get("rating") != null ?
+                        Integer.parseInt(item.get("rating").toString()) : 5;
+
+                ProductComment comment = new ProductComment();
+                comment.setUserId(userId);
+                comment.setOrderId(id);
+                comment.setOrderItemId(orderItemId);
+                comment.setProductId(productId);
+                comment.setMerchantId(order.getMerchantId());
+                comment.setContent(content);
+                comment.setRating(rating);
+                comment.setImages(imagesJson);
+                comment.setIsAnonymous(isAnonymous);
+                comment.setStatus(1); // 显示
+                comment.setCreateTime(LocalDateTime.now());
+                comment.setUpdateTime(LocalDateTime.now());
+                comment.setDeleted(0);
+
+                productCommentService.save(comment);
+            }
+        }
+
+        // 更新订单状态为已完成
         order.setStatus(5); // 已完成
         order.setCompleteTime(LocalDateTime.now());
         order.setUpdateTime(LocalDateTime.now());
         orderService.updateById(order);
 
         return Result.success();
+    }
+
+    @GetMapping("/{id}/comment")
+    @Operation(summary = "获取订单评价")
+    public Result<Map<String, Object>> getOrderComment(
+            @RequestHeader(value = "X-User-Id", required = false) Long userId,
+            @PathVariable Long id) {
+        log.info("获取订单评价: userId={}, orderId={}", userId, id);
+
+        if (userId == null) {
+            return Result.failed("请先登录");
+        }
+
+        Order order = orderService.getById(id);
+        if (order == null || !order.getUserId().equals(userId)) {
+            return Result.failed("订单不存在");
+        }
+
+        // 查询订单的评价（只取第一条，因为一个订单所有商品共用一个评价内容）
+        LambdaQueryWrapper<ProductComment> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(ProductComment::getOrderId, id)
+                .eq(ProductComment::getUserId, userId)
+                .eq(ProductComment::getDeleted, 0)
+                .orderByDesc(ProductComment::getCreateTime)
+                .last("LIMIT 1");
+
+        ProductComment comment = productCommentService.getOne(queryWrapper);
+        if (comment == null) {
+            return Result.success(null);
+        }
+
+        // 构建返回数据
+        Map<String, Object> result = new HashMap<>();
+        result.put("id", comment.getId());
+        result.put("orderId", comment.getOrderId());
+        result.put("productId", comment.getProductId());
+        result.put("content", comment.getContent());
+        result.put("rating", comment.getRating());
+        result.put("images", comment.getImages());
+        result.put("isAnonymous", comment.getIsAnonymous());
+        result.put("replyContent", comment.getReplyContent());
+        result.put("replyTime", comment.getReplyTime() != null ?
+                comment.getReplyTime().format(FORMATTER) : null);
+        result.put("createTime", comment.getCreateTime() != null ?
+                comment.getCreateTime().format(FORMATTER) : null);
+
+        // 获取商品信息
+        if (comment.getProductId() != null) {
+            Product product = productService.getById(comment.getProductId());
+            if (product != null) {
+                result.put("productName", product.getName());
+                result.put("productImage", imageUrlUtil.generateUrl(product.getImage()));
+            }
+        }
+
+        return Result.success(result);
     }
 
     @PostMapping("/{id}/reorder")

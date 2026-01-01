@@ -165,9 +165,8 @@ public class MerchantDeliveryController {
 
         for (Long orderId : orderIds) {
             Order order = orderService.getById(orderId);
-            // 状态2=待发货，批量开始配送后变为状态3=配送中
-            if (order != null && order.getMerchantId().equals(merchantId) && order.getStatus() == 2) {
-                order.setStatus(3); // 配送中
+            if (order != null && order.getMerchantId().equals(merchantId) && order.getStatus() == 3) {
+                order.setStatus(4); // 配送中
                 order.setDeliveryTime(now);
                 order.setUpdateTime(now);
                 orderService.updateById(order);
@@ -236,15 +235,13 @@ public class MerchantDeliveryController {
 
     /**
      * 获取配送状态字符串
-     * 简化流程：2-待发货(pending) 3-配送中(delivering) 4-待评价 5-已完成(completed)
      */
     private String getStatusString(Integer status) {
         if (status == null) return "unknown";
         switch (status) {
-            case 2: return "pending";      // 待发货
-            case 3: return "delivering";   // 配送中
-            case 4: return "completed";    // 待评价（配送已完成）
-            case 5: return "completed";    // 已完成
+            case 3: return "pending";
+            case 4: return "delivering";
+            case 5: return "completed";
             default: return "unknown";
         }
     }

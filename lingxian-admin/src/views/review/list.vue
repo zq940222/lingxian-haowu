@@ -130,7 +130,7 @@
         </el-table-column>
         <el-table-column label="商家回复" width="150" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ row.reply || '-' }}
+            {{ row.replyContent || '-' }}
           </template>
         </el-table-column>
         <el-table-column prop="status" label="状态" width="80">
@@ -210,8 +210,8 @@
             {{ currentReview.status === 1 ? '显示' : '隐藏' }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="商家回复" :span="2">{{ currentReview.reply || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="回复时间" :span="2" v-if="currentReview.reply">
+        <el-descriptions-item label="商家回复" :span="2">{{ currentReview.replyContent || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="回复时间" :span="2" v-if="currentReview.replyContent">
           {{ formatDateTime(currentReview.replyTime) }}
         </el-descriptions-item>
       </el-descriptions>

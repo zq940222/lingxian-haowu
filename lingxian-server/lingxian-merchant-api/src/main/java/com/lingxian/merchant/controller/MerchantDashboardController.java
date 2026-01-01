@@ -155,6 +155,16 @@ public class MerchantDashboardController {
                 .map(Order::getPayAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        // 今日已配送数量（状态>=3，即配送中、待评价、已完成）
+        int deliveryCount = (int) todayOrders.stream()
+                .filter(o -> o.getStatus() >= 3)
+                .count();
+
+        // 今日待处理数量（状态=2，待发货）
+        int pendingCount = (int) todayOrders.stream()
+                .filter(o -> o.getStatus() == 2)
+                .count();
+
         // 今日新客户数（根据用户首次下单时间）
         Set<Long> todayUserIds = todayOrders.stream()
                 .map(Order::getUserId)
@@ -181,6 +191,8 @@ public class MerchantDashboardController {
 
         stats.put("orderCount", orderCount);
         stats.put("salesAmount", salesAmount.setScale(2, RoundingMode.HALF_UP));
+        stats.put("deliveryCount", deliveryCount);
+        stats.put("pendingCount", pendingCount);
         stats.put("newCustomers", newCustomers);
         stats.put("avgOrderAmount", avgOrderAmount);
 

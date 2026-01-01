@@ -34,44 +34,49 @@
         </view>
 
         <view class="order-products" @click="goDetail(order.id)">
-          <view class="product" v-for="(p, i) in order.products.slice(0, 2)" :key="i">
-            <image :src="p.image" mode="aspectFill" />
+          <view class="product" v-for="(item, i) in getOrderItems(order).slice(0, 2)" :key="i">
+            <image :src="item.productImage" mode="aspectFill" />
             <view class="info">
-              <text class="name">{{ p.name }}</text>
-              <text class="spec">{{ p.spec }}</text>
+              <text class="name">{{ item.productName }}</text>
+              <text class="spec">{{ item.skuName }}</text>
             </view>
             <view class="right">
-              <text class="price">¥{{ p.price }}</text>
-              <text class="quantity">x{{ p.quantity }}</text>
+              <text class="price">¥{{ item.price }}</text>
+              <text class="quantity">x{{ item.quantity }}</text>
             </view>
           </view>
-          <view class="more-products" v-if="order.products.length > 2">
-            共{{ order.products.length }}件商品
+          <view class="more-products" v-if="getOrderItems(order).length > 2">
+            共{{ getOrderItems(order).length }}件商品
           </view>
         </view>
 
         <view class="order-footer">
           <view class="total">
-            <text>共{{ order.totalQuantity }}件</text>
+            <text>共{{ getTotalQuantity(order) }}件</text>
             <text class="amount">实付 <text class="price">¥{{ order.payAmount }}</text></text>
           </view>
           <view class="actions">
-            <!-- 待支付 -->
-            <template v-if="order.status === 0">
+            <!-- 待付款 -->
+            <template v-if="order.status === 1">
               <view class="btn default" @click="cancelOrder(order)">取消订单</view>
               <view class="btn primary" @click="payOrder(order)">立即支付</view>
             </template>
-            <!-- 待收货/配送中 -->
+            <!-- 配送中 -->
             <template v-else-if="order.status === 3">
-              <view class="btn default" @click="callShop(order)">联系商家</view>
+              <view class="btn default" @click="goDetail(order.id)">查看详情</view>
               <view class="btn primary" @click="confirmReceive(order)">确认收货</view>
             </template>
-            <!-- 已完成 -->
+            <!-- 待评价 -->
             <template v-else-if="order.status === 4">
               <view class="btn default" @click="goDetail(order.id)">查看详情</view>
+              <view class="btn primary" @click="goComment(order)">去评价</view>
+            </template>
+            <!-- 已完成 -->
+            <template v-else-if="order.status === 5">
+              <view class="btn default" @click="viewComment(order)">查看评价</view>
               <view class="btn primary" @click="reorder(order)">再来一单</view>
             </template>
-            <!-- 其他状态 -->
+            <!-- 其他状态（待发货、已取消等） -->
             <template v-else>
               <view class="btn default" @click="goDetail(order.id)">查看详情</view>
             </template>
@@ -96,12 +101,14 @@ import { ref } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import { orderApi } from '@/api'
 
+// 订单状态：1-待付款 2-待发货 3-配送中 4-待评价 5-已完成 6-已取消 7-已退款
 const statusTabs = [
   { label: '全部', value: -1 },
-  { label: '待支付', value: 0 },
-  { label: '待接单', value: 1 },
+  { label: '待支付', value: 1 },
+  { label: '待发货', value: 2 },
   { label: '配送中', value: 3 },
-  { label: '已完成', value: 4 }
+  { label: '待评价', value: 4 },
+  { label: '已完成', value: 5 }
 ]
 
 const currentStatus = ref(-1)
@@ -180,26 +187,57 @@ const onRefresh = () => {
 
 // 获取状态样式
 const getStatusClass = (status) => {
-  const map = { 0: 'pending', 1: 'wait', 2: 'wait', 3: 'delivery', 4: 'done', 5: 'cancel' }
+  const map = {
+    1: 'pending',    // 待付款
+    2: 'wait',       // 待发货
+    3: 'delivery',   // 配送中
+    4: 'done',       // 待评价
+    5: 'done',       // 已完成
+    6: 'cancel',     // 已取消
+    7: 'cancel'      // 已退款
+  }
   return map[status] || ''
 }
 
 // 获取状态文本
 const getStatusText = (status) => {
   const map = {
-    0: '待支付',
-    1: '待接单',
-    2: '待配送',
+    1: '待支付',
+    2: '待发货',
     3: '配送中',
-    4: '已完成',
-    5: '已取消'
+    4: '待评价',
+    5: '已完成',
+    6: '已取消',
+    7: '已退款'
   }
   return map[status] || '未知'
+}
+
+// 获取订单商品（兼容 items 和 products 字段）
+const getOrderItems = (order) => {
+  return order.items || order.products || []
+}
+
+// 计算订单总数量
+const getTotalQuantity = (order) => {
+  if (order.totalQuantity) return order.totalQuantity
+  const items = getOrderItems(order)
+  return items.reduce((sum, item) => sum + (item.quantity || 0), 0)
 }
 
 // 跳转详情
 const goDetail = (id) => {
   uni.navigateTo({ url: `/pages/order/detail?id=${id}` })
+}
+
+// 跳转评价
+const goComment = (order) => {
+  uni.navigateTo({ url: `/pages/order/comment?id=${order.id}` })
+}
+
+// 查看评价
+const viewComment = (order) => {
+  uni.navigateTo({ url: `/pages/order/comment-view?orderId=${order.id}` })
 }
 
 // 取消订单

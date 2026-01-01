@@ -307,14 +307,19 @@ const submitOrder = async () => {
 
     // 调用后端批量创建订单
     let orderIds = []
-    try {
-      const res = await orderApi.create({ orders: ordersData })
-      if (res.code === 200) {
-        orderIds = res.data.orderIds || []
-      }
-    } catch (e) {
-      console.log('后端订单创建失败，使用模拟订单ID')
-      orderIds = merchantOrders.value.map((_, i) => 'mock_order_' + Date.now() + '_' + i)
+    const res = await orderApi.create({ orders: ordersData })
+    if (res.code === 200) {
+      orderIds = res.data.orderIds || []
+    } else {
+      uni.hideLoading()
+      uni.showToast({ title: res.msg || '创建订单失败', icon: 'none' })
+      return
+    }
+
+    if (orderIds.length === 0) {
+      uni.hideLoading()
+      uni.showToast({ title: '创建订单失败', icon: 'none' })
+      return
     }
 
     uni.hideLoading()
@@ -326,6 +331,18 @@ const submitOrder = async () => {
       // 模拟支付
       try {
         await mockPayment(payAmount.value)
+
+        // 模拟支付成功后，调用后端更新订单状态为已支付
+        uni.showLoading({ title: '处理中...' })
+        for (const orderId of orderIds) {
+          try {
+            await orderApi.pay(orderId)
+          } catch (e) {
+            console.error('更新订单支付状态失败', orderId, e)
+          }
+        }
+        uni.hideLoading()
+
         uni.showToast({ title: '支付成功', icon: 'success' })
         setTimeout(() => {
           if (orderIds.length === 1) {
@@ -344,8 +361,8 @@ const submitOrder = async () => {
     } else {
       // 正式环境：调用微信支付（合并支付）
       try {
-        const res = await orderApi.pay({ orderIds })
-        await uni.requestPayment(res.data.payParams)
+        const payRes = await orderApi.pay({ orderIds })
+        await uni.requestPayment(payRes.data.payParams)
         uni.redirectTo({ url: '/pages/order/list' })
       } catch (e) {
         uni.redirectTo({ url: '/pages/order/list?status=0' })
@@ -353,7 +370,8 @@ const submitOrder = async () => {
     }
   } catch (e) {
     uni.hideLoading()
-    uni.showToast({ title: '提交失败', icon: 'none' })
+    console.error('提交订单失败', e)
+    uni.showToast({ title: e.message || '提交失败', icon: 'none' })
   }
 }
 </script>

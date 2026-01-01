@@ -116,26 +116,77 @@
       </view>
     </view>
 
-    <!-- 拒单原因 -->
-    <view class="section" v-if="order.status === 5 && order.rejectReason">
+    <!-- 拒单/取消原因 -->
+    <view class="section" v-if="(order.status === 6 || order.status === 7) && (order.rejectReason || order.cancelReason)">
       <view class="section-title">
         <uni-icons type="closeempty" size="18" color="#ff4d4f" />
-        <text>拒单原因</text>
+        <text>{{ order.status === 7 ? '退款原因' : '取消原因' }}</text>
       </view>
       <view class="reject-reason">
-        <text>{{ order.rejectReason }}</text>
+        <text>{{ order.rejectReason || order.cancelReason }}</text>
+      </view>
+    </view>
+
+    <!-- 用户评价 -->
+    <view class="section" v-if="order.hasComment && order.comments && order.comments.length > 0">
+      <view class="section-title">
+        <uni-icons type="star-filled" size="18" color="#ffb800" />
+        <text>用户评价</text>
+      </view>
+      <view class="comment-list">
+        <view class="comment-item" v-for="(comment, index) in order.comments" :key="index">
+          <view class="comment-header">
+            <view class="rating">
+              <uni-icons
+                v-for="star in 5"
+                :key="star"
+                :type="comment.rating >= star ? 'star-filled' : 'star'"
+                size="14"
+                :color="comment.rating >= star ? '#ffb800' : '#ddd'"
+              />
+            </view>
+            <text class="time">{{ comment.createTime }}</text>
+          </view>
+          <view class="comment-content" v-if="comment.content">
+            {{ comment.content }}
+          </view>
+          <view class="comment-images" v-if="comment.images">
+            <image
+              v-for="(img, i) in comment.images.split(',')"
+              :key="i"
+              :src="img"
+              mode="aspectFill"
+              @click="previewImage(comment.images.split(','), i)"
+            />
+          </view>
+          <view class="reply-box" v-if="comment.replyContent">
+            <text class="reply-label">商家回复：</text>
+            <text class="reply-content">{{ comment.replyContent }}</text>
+          </view>
+          <view class="reply-btn" v-else @click="goReplyComment(comment.id)">
+            <uni-icons type="chat" size="14" color="#1890ff" />
+            <text>回复评价</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 待评价提示 -->
+    <view class="section" v-else-if="order.status === 4 && !order.hasComment">
+      <view class="section-title">
+        <uni-icons type="star" size="18" color="#999" />
+        <text>用户评价</text>
+      </view>
+      <view class="no-comment">
+        <text>用户暂未评价</text>
       </view>
     </view>
 
     <!-- 底部操作 -->
     <view class="footer" v-if="showActions">
-      <!-- 待接单 -->
-      <template v-if="order.status === 1">
+      <!-- 待发货 -->
+      <template v-if="order.status === 2">
         <view class="btn default" @click="rejectOrder">拒单</view>
-        <view class="btn primary" @click="acceptOrder">接单</view>
-      </template>
-      <!-- 待配送 -->
-      <template v-else-if="order.status === 2">
         <view class="btn primary" @click="startDelivery">开始配送</view>
       </template>
       <!-- 配送中 -->
@@ -158,7 +209,8 @@ const order = ref({
 })
 
 const showActions = computed(() => {
-  return [1, 2, 3].includes(order.value.status)
+  // 待发货(2)和配送中(3)显示操作按钮
+  return [2, 3].includes(order.value.status)
 })
 
 onLoad((options) => {
@@ -182,14 +234,16 @@ const loadOrder = async () => {
 }
 
 // 获取状态样式
+// 订单状态：1-待付款 2-待发货 3-配送中 4-待评价 5-已完成 6-已取消 7-已退款
 const getStatusClass = (status) => {
   const classMap = {
-    0: 'wait',
-    1: 'pending',
-    2: 'pending',
-    3: 'delivering',
-    4: 'completed',
-    5: 'canceled'
+    1: 'wait',        // 待付款
+    2: 'pending',     // 待发货
+    3: 'delivering',  // 配送中
+    4: 'completed',   // 待评价
+    5: 'completed',   // 已完成
+    6: 'canceled',    // 已取消
+    7: 'canceled'     // 已退款
   }
   return classMap[status] || ''
 }
@@ -197,12 +251,13 @@ const getStatusClass = (status) => {
 // 获取状态文本
 const getStatusText = (status) => {
   const textMap = {
-    0: '待支付',
-    1: '待接单',
-    2: '待配送',
+    1: '待付款',
+    2: '待发货',
     3: '配送中',
-    4: '已完成',
-    5: '已取消'
+    4: '待评价',
+    5: '已完成',
+    6: '已取消',
+    7: '已退款'
   }
   return textMap[status] || '未知'
 }
@@ -210,12 +265,13 @@ const getStatusText = (status) => {
 // 获取状态描述
 const getStatusDesc = (status) => {
   const descMap = {
-    0: '等待用户支付',
-    1: '请尽快接单处理',
-    2: '订单已接，请尽快配送',
+    1: '等待用户支付',
+    2: '请尽快配送',
     3: '正在配送中，请送达后确认',
-    4: '订单已完成',
-    5: '订单已取消'
+    4: '用户已收货，等待评价',
+    5: '订单已完成',
+    6: '订单已取消',
+    7: '订单已退款'
   }
   return descMap[status] || ''
 }
@@ -223,12 +279,13 @@ const getStatusDesc = (status) => {
 // 获取状态图标
 const getStatusIcon = (status) => {
   const iconMap = {
-    0: 'wallet',
-    1: 'notification',
+    1: 'wallet',
     2: 'list',
     3: 'car',
-    4: 'checkbox-filled',
-    5: 'closeempty'
+    4: 'star',
+    5: 'checkbox-filled',
+    6: 'closeempty',
+    7: 'redo'
   }
   return iconMap[status] || 'info'
 }
@@ -323,6 +380,19 @@ const completeDelivery = async () => {
   } catch (e) {
     // 取消或失败
   }
+}
+
+// 预览图片
+const previewImage = (urls, current) => {
+  uni.previewImage({
+    urls,
+    current: urls[current]
+  })
+}
+
+// 跳转回复评价
+const goReplyComment = (commentId) => {
+  uni.navigateTo({ url: `/pages/comment/list?replyId=${commentId}` })
 }
 </script>
 
@@ -579,6 +649,98 @@ const completeDelivery = async () => {
   text {
     font-size: 26rpx;
     color: #ff4d4f;
+  }
+}
+
+/* 评价列表 */
+.comment-list {
+  padding: 0 30rpx;
+
+  .comment-item {
+    padding: 20rpx 0;
+    border-bottom: 1rpx solid #f0f0f0;
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    .comment-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16rpx;
+
+      .rating {
+        display: flex;
+      }
+
+      .time {
+        font-size: 24rpx;
+        color: #999;
+      }
+    }
+
+    .comment-content {
+      font-size: 28rpx;
+      color: #333;
+      line-height: 1.6;
+      margin-bottom: 16rpx;
+    }
+
+    .comment-images {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12rpx;
+      margin-bottom: 16rpx;
+
+      image {
+        width: 150rpx;
+        height: 150rpx;
+        border-radius: $border-radius-sm;
+      }
+    }
+
+    .reply-box {
+      background-color: #f0f9ff;
+      padding: 16rpx;
+      border-radius: $border-radius-sm;
+
+      .reply-label {
+        font-size: 26rpx;
+        color: $primary-color;
+        font-weight: bold;
+      }
+
+      .reply-content {
+        font-size: 26rpx;
+        color: #666;
+      }
+    }
+
+    .reply-btn {
+      display: inline-flex;
+      align-items: center;
+      padding: 12rpx 20rpx;
+      background-color: #f0f9ff;
+      border-radius: 20rpx;
+
+      text {
+        font-size: 24rpx;
+        color: $primary-color;
+        margin-left: 8rpx;
+      }
+    }
+  }
+}
+
+/* 暂无评价 */
+.no-comment {
+  padding: 40rpx 30rpx;
+  text-align: center;
+
+  text {
+    font-size: 28rpx;
+    color: #999;
   }
 }
 

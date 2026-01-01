@@ -30,6 +30,7 @@ public class MerchantOrderController {
     private final OrderItemService orderItemService;
     private final UserService userService;
     private final MerchantUserService merchantUserService;
+    private final ProductCommentService productCommentService;
     private final ImageUrlUtil imageUrlUtil;
 
     @GetMapping
@@ -51,7 +52,12 @@ public class MerchantOrderController {
                 .orderByDesc(Order::getCreateTime);
 
         if (status != null) {
-            wrapper.eq(Order::getStatus, status);
+            // status=4 表示已完成（包含待评价4和已完成5）
+            if (status == 4) {
+                wrapper.in(Order::getStatus, 4, 5);
+            } else {
+                wrapper.eq(Order::getStatus, status);
+            }
         }
 
         // 分页查询
@@ -94,7 +100,7 @@ public class MerchantOrderController {
     }
 
     @PutMapping("/{id}/accept")
-    @Operation(summary = "接单")
+    @Operation(summary = "接单（发货）")
     public Result<Void> acceptOrder(
             @RequestHeader(value = "X-Merchant-User-Id", required = false) Long userId,
             @PathVariable Long id) {
@@ -109,16 +115,18 @@ public class MerchantOrderController {
             return Result.failed("订单不存在");
         }
 
+        // 状态2=待发货，商户接单后变为状态3=待收货（配送中）
         if (order.getStatus() != 2) {
             return Result.failed("订单状态不正确，无法接单");
         }
 
-        // 更新订单状态为已接单
+        // 更新订单状态为待收货（配送中）
         order.setStatus(3);
+        order.setDeliveryTime(LocalDateTime.now());
         order.setUpdateTime(LocalDateTime.now());
         orderService.updateById(order);
 
-        log.info("商户接单: orderId={}, merchantId={}", id, merchantId);
+        log.info("商户接单发货: orderId={}, merchantId={}", id, merchantId);
         return Result.success();
     }
 
@@ -174,12 +182,13 @@ public class MerchantOrderController {
             return Result.failed("订单不存在");
         }
 
-        if (order.getStatus() != 3) {
+        // 状态2=待发货，可以直接开始配送，变为状态3=待收货
+        if (order.getStatus() != 2) {
             return Result.failed("订单状态不正确，无法开始配送");
         }
 
-        // 更新订单状态为配送中
-        order.setStatus(4);
+        // 更新订单状态为待收货（配送中）
+        order.setStatus(3);
         order.setDeliveryTime(LocalDateTime.now());
         order.setUpdateTime(LocalDateTime.now());
         orderService.updateById(order);
@@ -204,14 +213,14 @@ public class MerchantOrderController {
             return Result.failed("订单不存在");
         }
 
-        if (order.getStatus() != 4) {
+        // 状态3=待收货（配送中），完成配送后变为状态4=待评价
+        if (order.getStatus() != 3) {
             return Result.failed("订单状态不正确，无法完成配送");
         }
 
-        // 更新订单状态为已完成
-        order.setStatus(5);
+        // 更新订单状态为待评价
+        order.setStatus(4);
         order.setReceiveTime(LocalDateTime.now());
-        order.setCompleteTime(LocalDateTime.now());
         order.setUpdateTime(LocalDateTime.now());
         orderService.updateById(order);
 
@@ -286,20 +295,52 @@ public class MerchantOrderController {
             orderMap.put("userAvatar", imageUrlUtil.generateUrl(user.getAvatar()));
         }
 
+        // 取消原因
+        orderMap.put("cancelReason", order.getCancelReason());
+
+        // 评价信息（状态>=4时查询）
+        if (order.getStatus() != null && order.getStatus() >= 4) {
+            List<ProductComment> comments = productCommentService.list(
+                    new LambdaQueryWrapper<ProductComment>()
+                            .eq(ProductComment::getOrderId, order.getId())
+                            .eq(ProductComment::getDeleted, 0)
+            );
+            if (!comments.isEmpty()) {
+                List<Map<String, Object>> commentList = new ArrayList<>();
+                for (ProductComment comment : comments) {
+                    Map<String, Object> commentMap = new HashMap<>();
+                    commentMap.put("id", comment.getId());
+                    commentMap.put("productId", comment.getProductId());
+                    commentMap.put("content", comment.getContent());
+                    commentMap.put("rating", comment.getRating());
+                    commentMap.put("images", comment.getImages());
+                    commentMap.put("isAnonymous", comment.getIsAnonymous());
+                    commentMap.put("replyContent", comment.getReplyContent());
+                    commentMap.put("createTime", comment.getCreateTime() != null ?
+                            comment.getCreateTime().format(formatter) : null);
+                    commentList.add(commentMap);
+                }
+                orderMap.put("comments", commentList);
+                orderMap.put("hasComment", true);
+            } else {
+                orderMap.put("hasComment", false);
+            }
+        }
+
         return orderMap;
     }
 
     /**
      * 获取订单状态名称
+     * 状态：1-待付款 2-待发货 3-待收货 4-待评价 5-已完成 6-已取消 7-已退款
      */
     private String getStatusName(Integer status) {
         if (status == null) return "未知";
         switch (status) {
-            case 0: return "待支付";
-            case 1: return "支付中";
-            case 2: return "待接单";
-            case 3: return "待配送";
-            case 4: return "配送中";
+            case 1: return "待付款";
+            case 2: return "待发货";
+            case 3: return "配送中";
+            case 4: return "待评价";
             case 5: return "已完成";
             case 6: return "已取消";
             case 7: return "已退款";

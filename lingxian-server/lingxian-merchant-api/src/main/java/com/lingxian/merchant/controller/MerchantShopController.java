@@ -265,9 +265,36 @@ public class MerchantShopController {
 
     @PutMapping("/status")
     @Operation(summary = "更新营业状态", description = "即时生效，不需要审核")
-    public Result<Void> updateShopStatus(@RequestBody Map<String, Integer> body) {
+    public Result<Void> updateShopStatus(
+            @RequestHeader(value = "X-Merchant-User-Id", required = false) Long userId,
+            @RequestBody Map<String, Integer> body) {
         Integer status = body.get("status");
-        log.info("更新营业状态: {}", status);
+        log.info("更新营业状态: userId={}, status={}", userId, status);
+
+        if (userId == null) {
+            return Result.failed("请先登录");
+        }
+
+        if (status == null) {
+            return Result.failed("状态参数不能为空");
+        }
+
+        MerchantUser merchantUser = merchantUserService.getById(userId);
+        if (merchantUser == null || merchantUser.getMerchantId() == null) {
+            return Result.failed("商户信息不存在");
+        }
+
+        Merchant merchant = merchantService.getById(merchantUser.getMerchantId());
+        if (merchant == null) {
+            return Result.failed("商户信息不存在");
+        }
+
+        // 更新营业状态
+        merchant.setStatus(status);
+        merchant.setUpdateTime(LocalDateTime.now());
+        merchantService.updateById(merchant);
+
+        log.info("营业状态更新成功: merchantId={}, status={}", merchant.getId(), status);
         return Result.success();
     }
 

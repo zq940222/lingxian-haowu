@@ -65,6 +65,18 @@
       }
     },
     {
+      "path": "pages/order/comment",
+      "style": {
+        "navigationBarTitleText": "评价订单"
+      }
+    },
+    {
+      "path": "pages/order/comment-view",
+      "style": {
+        "navigationBarTitleText": "查看评价"
+      }
+    },
+    {
       "path": "pages/group/list",
       "style": {
         "navigationBarTitleText": "拼团专区"

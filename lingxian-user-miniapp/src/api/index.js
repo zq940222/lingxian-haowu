@@ -144,3 +144,13 @@ export const merchantApi = {
   // 获取商户商品
   getProducts: (id, params) => get(`/user/merchants/${id}/products`, params)
 }
+
+// ============ 评价 ============
+export const commentApi = {
+  // 获取我的评价列表
+  getMyComments: (params) => get('/user/comments/my', params),
+  // 获取评价详情
+  getDetail: (id) => get(`/user/comments/${id}`),
+  // 获取订单评价
+  getOrderComment: (orderId) => get(`/user/orders/${orderId}/comment`)
+}

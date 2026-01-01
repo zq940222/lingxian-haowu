@@ -12,14 +12,20 @@ const BASE_URL = 'http://localhost:8085/api'
 const request = (options) => {
   return new Promise((resolve, reject) => {
     const token = uni.getStorageSync('token')
+    const userInfo = uni.getStorageSync('userInfo')
 
     const header = {
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/json;charset=UTF-8',
       ...options.header
     }
 
     if (token) {
       header['Authorization'] = `Bearer ${token}`
+    }
+
+    // 开发环境：传递用户ID（正式环境应从token中解析）
+    if (userInfo && userInfo.id) {
+      header['X-User-Id'] = userInfo.id
     }
 
     uni.request({

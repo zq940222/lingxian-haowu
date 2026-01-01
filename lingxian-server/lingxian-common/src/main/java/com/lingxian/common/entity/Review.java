@@ -8,11 +8,11 @@ import lombok.EqualsAndHashCode;
 import java.time.LocalDateTime;
 
 /**
- * 订单评价实体
+ * 订单评价实体（使用 t_product_comment 表）
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-@TableName("t_review")
+@TableName("t_product_comment")
 public class Review extends BaseEntity {
 
     /**
@@ -61,9 +61,9 @@ public class Review extends BaseEntity {
     private Integer isAnonymous;
 
     /**
-     * 商家回复
+     * 商家回复内容
      */
-    private String reply;
+    private String replyContent;
 
     /**
      * 回复时间

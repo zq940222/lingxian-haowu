@@ -107,6 +107,18 @@ export const statisticsApi = {
   getProducts: (params) => get('/merchant/statistics/products', params)
 }
 
+// ============ 评价 ============
+export const commentApi = {
+  // 获取评价列表
+  getList: (params) => get('/merchant/comments', params),
+  // 获取评价详情
+  getDetail: (id) => get(`/merchant/comments/${id}`),
+  // 回复评价
+  reply: (id, content) => put(`/merchant/comments/${id}/reply`, { content }),
+  // 获取评价统计
+  getStats: () => get('/merchant/comments/stats')
+}
+
 // ============ 店铺设置 ============
 export const shopApi = {
   // 获取店铺信息（包含审核状态、本月修改次数）

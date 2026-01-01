@@ -14,6 +14,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
+import com.lingxian.common.util.ImageUrlUtil;
+
 import java.util.Map;
 
 @Slf4j
@@ -28,6 +30,7 @@ public class AdminReviewController {
     private final ProductService productService;
     private final MerchantService merchantService;
     private final OrderService orderService;
+    private final ImageUrlUtil imageUrlUtil;
 
     private static final String[] RATING_LABELS = {"", "非常差", "较差", "一般", "较好", "非常好"};
 
@@ -182,7 +185,7 @@ public class AdminReviewController {
                     review.setUserAvatar(null);
                 } else {
                     review.setUserNickname(user.getNickname());
-                    review.setUserAvatar(user.getAvatar());
+                    review.setUserAvatar(imageUrlUtil.generateUrl(user.getAvatar()));
                 }
             }
         }
@@ -192,8 +195,19 @@ public class AdminReviewController {
             Product product = productService.getById(review.getProductId());
             if (product != null) {
                 review.setProductName(product.getName());
-                review.setProductImage(product.getImage());
+                review.setProductImage(imageUrlUtil.generateUrl(product.getImage()));
             }
+        }
+
+        // 处理评价图片URL
+        if (review.getImages() != null && !review.getImages().isEmpty()) {
+            String[] imageArr = review.getImages().split(",");
+            StringBuilder fullUrls = new StringBuilder();
+            for (int i = 0; i < imageArr.length; i++) {
+                if (i > 0) fullUrls.append(",");
+                fullUrls.append(imageUrlUtil.generateUrl(imageArr[i].trim()));
+            }
+            review.setImages(fullUrls.toString());
         }
 
         // 填充商户信息

@@ -65,13 +65,9 @@
         <view class="order-footer">
           <text class="time">{{ order.createTime }}</text>
           <view class="actions">
-            <!-- 待接单 -->
-            <template v-if="order.status === 1">
+            <!-- 待发货 - 可接单/拒单，或直接开始配送 -->
+            <template v-if="order.status === 2">
               <view class="btn default" @click="rejectOrder(order)">拒单</view>
-              <view class="btn primary" @click="acceptOrder(order)">接单</view>
-            </template>
-            <!-- 待配送 -->
-            <template v-else-if="order.status === 2">
               <view class="btn primary" @click="startDelivery(order)">开始配送</view>
             </template>
             <!-- 配送中 -->
@@ -102,10 +98,10 @@ import { orderApi } from '@/api'
 
 const merchantStore = useMerchantStore()
 
+// 简化流程：隐藏待配送状态，待发货(2)直接变为配送中(3)
 const statusTabs = ref([
   { label: '全部', value: -1, count: 0 },
-  { label: '待接单', value: 1, count: 0 },
-  { label: '待配送', value: 2, count: 0 },
+  { label: '待发货', value: 2, count: 0 },
   { label: '配送中', value: 3, count: 0 },
   { label: '已完成', value: 4, count: 0 }
 ])
@@ -206,25 +202,27 @@ const onRefresh = () => {
 // 获取状态样式
 const getStatusClass = (status) => {
   const classMap = {
-    0: 'wait',
-    1: 'pending',
-    2: 'pending',
-    3: 'delivering',
-    4: 'completed',
-    5: 'canceled'
+    1: 'wait',       // 待付款
+    2: 'pending',    // 待发货
+    3: 'delivering', // 配送中
+    4: 'completed',  // 待评价
+    5: 'completed',  // 已完成
+    6: 'canceled',   // 已取消
+    7: 'canceled'    // 已退款
   }
   return classMap[status] || ''
 }
 
-// 获取状态文本
+// 获取状态文本（简化流程）
 const getStatusText = (status) => {
   const textMap = {
-    0: '待支付',
-    1: '待接单',
-    2: '待配送',
+    1: '待付款',
+    2: '待发货',
     3: '配送中',
-    4: '已完成',
-    5: '已取消'
+    4: '待评价',
+    5: '已完成',
+    6: '已取消',
+    7: '已退款'
   }
   return textMap[status] || '未知'
 }

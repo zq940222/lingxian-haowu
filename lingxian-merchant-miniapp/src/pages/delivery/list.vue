@@ -7,7 +7,7 @@
         :class="{ active: currentTab === 'pending' }"
         @click="switchTab('pending')"
       >
-        <text>待配送</text>
+        <text>待发货</text>
         <view class="badge" v-if="pendingCount > 0">{{ pendingCount }}</view>
       </view>
       <view
@@ -94,7 +94,7 @@
 
           <!-- 底部操作按钮 -->
           <view class="order-actions">
-            <!-- 待配送 -->
+            <!-- 待发货 - 点击开始配送后变为配送中 -->
             <template v-if="currentTab === 'pending'">
               <view class="action-btn primary" @click.stop="startDelivery(order)">
                 <uni-icons type="car" size="18" color="#fff" />

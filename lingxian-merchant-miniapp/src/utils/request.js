@@ -21,7 +21,7 @@ const request = (options) => {
     const token = uni.getStorageSync('merchant_token')
 
     const header = {
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/json;charset=UTF-8',
       ...options.header
     }
 

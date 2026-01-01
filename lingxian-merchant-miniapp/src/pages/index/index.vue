@@ -54,7 +54,7 @@
         <view class="icon-wrap delivery">
           <uni-icons type="car" size="28" color="#fff" />
         </view>
-        <text>待配送</text>
+        <text>配送管理</text>
       </view>
       <view class="entry-item" @click="goProductList">
         <view class="icon-wrap product">
@@ -67,6 +67,12 @@
           <uni-icons type="bars" size="28" color="#fff" />
         </view>
         <text>数据统计</text>
+      </view>
+      <view class="entry-item" @click="goComments">
+        <view class="icon-wrap comment">
+          <uni-icons type="chat" size="28" color="#fff" />
+        </view>
+        <text>用户评价</text>
       </view>
     </view>
 
@@ -168,10 +174,11 @@ onPullDownRefresh(async () => {
 // 加载数据
 const loadData = async () => {
   try {
-    // 获取今日统计和待接单订单（状态2：已支付待接单）
-    const [statsRes, ordersRes] = await Promise.all([
+    // 获取今日统计、待接单订单和店铺信息
+    const [statsRes, ordersRes, shopRes] = await Promise.all([
       dashboardApi.getTodayStats(),
-      orderApi.getList({ status: 2, page: 1, pageSize: 5 })
+      orderApi.getList({ status: 2, page: 1, pageSize: 5 }),
+      shopApi.getInfo()
     ])
 
     if (statsRes.code === 200) {
@@ -179,18 +186,19 @@ const loadData = async () => {
       todayStats.value = {
         orderCount: stats.orderCount || 0,
         salesAmount: stats.salesAmount || '0.00',
-        deliveryCount: stats.newCustomers || 0, // 使用新客户数代替（或后续调整）
-        pendingCount: 0 // 稍后从订单数据获取
+        deliveryCount: stats.deliveryCount || 0,
+        pendingCount: stats.pendingCount || 0
       }
     }
 
     if (ordersRes.code === 200) {
       pendingOrders.value = ordersRes.data.records || []
-      // 更新待处理数量
-      todayStats.value.pendingCount = ordersRes.data.total || 0
     }
 
-    shopStatus.value = merchantStore.merchantInfo?.shopStatus || 0
+    // 从店铺信息获取最新营业状态
+    if (shopRes.code === 200) {
+      shopStatus.value = shopRes.data.shopStatus || 0
+    }
   } catch (e) {
     console.error('加载数据失败', e)
     uni.showToast({ title: '加载失败，请重试', icon: 'none' })
@@ -292,6 +300,11 @@ const goProductList = () => {
 // 跳转统计
 const goStatistics = () => {
   uni.navigateTo({ url: '/pages/statistics/index' })
+}
+
+// 跳转用户评价
+const goComments = () => {
+  uni.navigateTo({ url: '/pages/comment/list' })
 }
 </script>
 
@@ -423,6 +436,7 @@ const goStatistics = () => {
       &.delivery { background-color: #1890ff; }
       &.product { background-color: #52c41a; }
       &.stats { background-color: #722ed1; }
+      &.comment { background-color: #faad14; }
     }
 
     text {

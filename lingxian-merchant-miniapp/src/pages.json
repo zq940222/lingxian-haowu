@@ -1,7 +1,9 @@
 {
   "easycom": {
     "autoscan": true,
-    "custom": {}
+    "custom": {
+      "^uni-(.*)": "@dcloudio/uni-ui/lib/uni-$1/uni-$1.vue"
+    }
   },
   "pages": [
     {
@@ -50,6 +52,12 @@
       "path": "pages/statistics/index",
       "style": {
         "navigationBarTitleText": "数据统计"
+      }
+    },
+    {
+      "path": "pages/comment/list",
+      "style": {
+        "navigationBarTitleText": "用户评价"
       }
     },
     {

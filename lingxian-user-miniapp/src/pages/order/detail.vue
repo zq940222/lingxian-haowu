@@ -48,11 +48,11 @@
         <uni-icons type="right" size="16" color="#999" />
       </view>
       <view class="product-list">
-        <view class="product-item" v-for="(item, index) in order.products" :key="index">
-          <image :src="item.image" mode="aspectFill" />
+        <view class="product-item" v-for="(item, index) in orderItems" :key="index">
+          <image :src="item.productImage" mode="aspectFill" />
           <view class="info">
-            <text class="name">{{ item.name }}</text>
-            <text class="spec">{{ item.spec }}</text>
+            <text class="name">{{ item.productName }}</text>
+            <text class="spec">{{ item.skuName }}</text>
           </view>
           <view class="right">
             <text class="price">¥{{ item.price }}</text>
@@ -70,7 +70,7 @@
       </view>
       <view class="price-item">
         <text>配送费</text>
-        <text>¥{{ order.deliveryFee || '0.00' }}</text>
+        <text>¥{{ order.freightAmount || '0.00' }}</text>
       </view>
       <view class="price-item" v-if="order.discountAmount > 0">
         <text>优惠</text>
@@ -111,8 +111,8 @@
 
     <!-- 底部操作 -->
     <view class="footer" v-if="showActions">
-      <!-- 待支付 -->
-      <template v-if="order.status === 0">
+      <!-- 待付款 -->
+      <template v-if="order.status === 1">
         <view class="btn default" @click="cancelOrder">取消订单</view>
         <view class="btn primary" @click="payOrder">立即支付</view>
       </template>
@@ -121,8 +121,13 @@
         <view class="btn default" @click="callShop">联系商家</view>
         <view class="btn primary" @click="confirmReceive">确认收货</view>
       </template>
-      <!-- 已完成 -->
+      <!-- 待评价 -->
       <template v-else-if="order.status === 4">
+        <view class="btn primary" @click="goComment">去评价</view>
+      </template>
+      <!-- 已完成 -->
+      <template v-else-if="order.status === 5">
+        <view class="btn default" @click="viewComment">查看评价</view>
         <view class="btn primary" @click="reorder">再来一单</view>
       </template>
     </view>
@@ -136,11 +141,17 @@ import { orderApi } from '@/api'
 
 const orderId = ref('')
 const order = ref({
-  products: []
+  items: []
+})
+
+// 获取订单商品列表（兼容 items 和 products 字段）
+const orderItems = computed(() => {
+  return order.value.items || order.value.products || []
 })
 
 const showActions = computed(() => {
-  return [0, 3, 4].includes(order.value.status)
+  // 1-待付款 3-配送中 4-待评价 5-已完成
+  return [1, 3, 4, 5].includes(order.value.status)
 })
 
 onLoad((options) => {
@@ -165,42 +176,53 @@ const loadOrder = async () => {
 
 // 状态相关方法
 const getStatusClass = (status) => {
-  const map = { 0: 'pending', 1: 'wait', 2: 'wait', 3: 'delivery', 4: 'done', 5: 'cancel' }
+  const map = {
+    1: 'pending',    // 待付款
+    2: 'wait',       // 待发货
+    3: 'delivery',   // 配送中
+    4: 'done',       // 待评价
+    5: 'done',       // 已完成
+    6: 'cancel',     // 已取消
+    7: 'cancel'      // 已退款
+  }
   return map[status] || ''
 }
 
 const getStatusText = (status) => {
   const map = {
-    0: '待支付',
-    1: '待接单',
-    2: '待配送',
+    1: '待支付',
+    2: '待发货',
     3: '配送中',
-    4: '已完成',
-    5: '已取消'
+    4: '待评价',
+    5: '已完成',
+    6: '已取消',
+    7: '已退款'
   }
   return map[status] || '未知'
 }
 
 const getStatusDesc = (status) => {
   const map = {
-    0: '请在15分钟内完成支付',
-    1: '商家正在处理您的订单',
+    1: '请在15分钟内完成支付',
     2: '商家正在备货中',
     3: '配送员正在配送中',
-    4: '感谢您的惠顾',
-    5: '订单已取消'
+    4: '请对本次购物进行评价',
+    5: '感谢您的惠顾',
+    6: '订单已取消',
+    7: '订单已退款'
   }
   return map[status] || ''
 }
 
 const getStatusIcon = (status) => {
   const map = {
-    0: 'wallet',
-    1: 'loop',
+    1: 'wallet',
     2: 'list',
     3: 'car',
-    4: 'checkbox-filled',
-    5: 'closeempty'
+    4: 'star',
+    5: 'checkbox-filled',
+    6: 'closeempty',
+    7: 'redo'
   }
   return map[status] || 'info'
 }
@@ -314,6 +336,16 @@ const callShop = () => {
 // 联系配送
 const callDelivery = () => {
   uni.makePhoneCall({ phoneNumber: order.value.deliveryPhone })
+}
+
+// 去评价
+const goComment = () => {
+  uni.navigateTo({ url: `/pages/order/comment?id=${orderId.value}` })
+}
+
+// 查看评价
+const viewComment = () => {
+  uni.navigateTo({ url: `/pages/order/comment-view?orderId=${orderId.value}` })
 }
 
 // 再来一单
