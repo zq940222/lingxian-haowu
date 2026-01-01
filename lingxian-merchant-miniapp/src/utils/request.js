@@ -8,9 +8,9 @@ const getBaseUrl = () => {
   // #ifdef H5
   return '/api'
   // #endif
-  // 其他环境使用实际地址
+  // 小程序开发环境使用本地地址，上线时需改为正式域名
   // #ifndef H5
-  return 'https://api.lingxian.com/api'
+  return 'http://localhost:8086/api'
   // #endif
 }
 

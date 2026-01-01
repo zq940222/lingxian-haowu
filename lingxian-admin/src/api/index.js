@@ -15,8 +15,12 @@ export const merchantApi = {
   getDetail: (id) => request({ url: `/admin/merchants/${id}`, method: 'get' }),
   update: (id, data) => request({ url: `/admin/merchants/${id}`, method: 'put', data }),
   updateStatus: (id, status) => request({ url: `/admin/merchants/${id}/status`, method: 'put', data: { status } }),
+  // 商户入驻审核
   verify: (id, data) => request({ url: `/admin/merchants/${id}/verify`, method: 'put', data }),
-  getPendingList: (params) => request({ url: '/admin/merchants/pending', method: 'get', params })
+  getPendingList: (params) => request({ url: '/admin/merchants/pending', method: 'get', params }),
+  // 商户信息变更审核（包含头像、名称、地址等）
+  getInfoAuditList: (params) => request({ url: '/admin/merchants/info-audits', method: 'get', params }),
+  auditInfoChange: (id, data) => request({ url: `/admin/merchants/info-audits/${id}`, method: 'put', data })
 }
 
 // ============ 商品管理 ============

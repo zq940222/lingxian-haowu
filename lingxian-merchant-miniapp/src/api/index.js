@@ -107,17 +107,17 @@ export const statisticsApi = {
 
 // ============ 店铺设置 ============
 export const shopApi = {
-  // 获取店铺信息
+  // 获取店铺信息（包含审核状态、本月修改次数）
   getInfo: () => get('/merchant/shop'),
-  // 更新店铺信息
+  // 更新店铺信息（需要审核的字段变更会自动提交审核）
   updateInfo: (data) => put('/merchant/shop', data),
-  // 更新营业状态
+  // 更新营业状态（即时生效）
   updateStatus: (status) => put('/merchant/shop/status', { status }),
-  // 更新营业时间
+  // 更新营业时间（即时生效）
   updateHours: (data) => put('/merchant/shop/hours', data),
   // 获取配送设置
   getDeliverySettings: () => get('/merchant/shop/delivery-settings'),
-  // 更新配送设置
+  // 更新配送设置（即时生效）
   updateDeliverySettings: (data) => put('/merchant/shop/delivery-settings', data)
 }
 
