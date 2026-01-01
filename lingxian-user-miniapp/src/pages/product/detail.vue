@@ -26,6 +26,25 @@
       </view>
     </view>
 
+    <!-- 商户信息 -->
+    <view class="merchant-card" v-if="product.merchant" @click="goMerchant">
+      <image class="merchant-logo" :src="product.merchant.logo || '/static/images/default-shop.png'" mode="aspectFill" />
+      <view class="merchant-info">
+        <view class="merchant-name-row">
+          <text class="merchant-name">{{ product.merchant.name }}</text>
+          <view class="merchant-rating" v-if="product.merchant.rating">
+            <text class="rating-icon">★</text>
+            <text class="rating-value">{{ product.merchant.rating }}</text>
+          </view>
+        </view>
+        <text class="merchant-desc">{{ product.merchant.description || '暂无简介' }}</text>
+      </view>
+      <view class="enter-shop">
+        <text>进店</text>
+        <text class="arrow">›</text>
+      </view>
+    </view>
+
     <!-- 配送信息 -->
     <view class="delivery-info">
       <view class="item">
@@ -35,7 +54,77 @@
       <view class="item" @click="goAddress">
         <text class="label">送至</text>
         <text class="value address">{{ address || '请选择收货地址' }}</text>
-        <uni-icons type="right" size="14" color="#999" />
+        <text class="arrow">›</text>
+      </view>
+    </view>
+
+    <!-- 用户评价 -->
+    <view class="comment-section">
+      <view class="section-header" @click="goCommentList">
+        <view class="left">
+          <text class="title">用户评价</text>
+          <text class="count">({{ product.commentStats?.total || 0 }})</text>
+        </view>
+        <view class="right">
+          <text class="rate">好评率 {{ product.commentStats?.goodRate || 100 }}%</text>
+          <text class="arrow">›</text>
+        </view>
+      </view>
+
+      <!-- 评价统计 -->
+      <view class="comment-stats" v-if="product.commentStats?.total > 0">
+        <view class="stat-item">
+          <text class="stat-value">{{ product.commentStats?.avgRating || '5.0' }}</text>
+          <text class="stat-label">综合评分</text>
+        </view>
+        <view class="stat-divider"></view>
+        <view class="stat-item">
+          <text class="stat-value">{{ product.commentStats?.goodRate || 100 }}%</text>
+          <text class="stat-label">好评率</text>
+        </view>
+      </view>
+
+      <!-- 评价列表 -->
+      <view class="comment-list" v-if="product.comments && product.comments.length > 0">
+        <view class="comment-item" v-for="comment in product.comments" :key="comment.id">
+          <view class="comment-header">
+            <image class="user-avatar" :src="comment.userAvatar || '/static/images/default-avatar.png'" mode="aspectFill" />
+            <view class="user-info">
+              <text class="user-name">{{ comment.userName }}</text>
+              <view class="rating-stars">
+                <text v-for="i in 5" :key="i" :class="['star', i <= comment.rating ? 'active' : '']">★</text>
+              </view>
+            </view>
+            <text class="comment-time">{{ comment.createTime }}</text>
+          </view>
+          <text class="comment-content">{{ comment.content }}</text>
+          <!-- 评价图片 -->
+          <view class="comment-images" v-if="comment.images && comment.images.length > 0">
+            <image
+              v-for="(img, idx) in comment.images"
+              :key="idx"
+              :src="img"
+              mode="aspectFill"
+              @click="previewCommentImage(comment.images, idx)"
+            />
+          </view>
+          <!-- 商家回复 -->
+          <view class="merchant-reply" v-if="comment.replyContent">
+            <text class="reply-label">商家回复：</text>
+            <text class="reply-content">{{ comment.replyContent }}</text>
+          </view>
+        </view>
+
+        <!-- 查看更多评价 -->
+        <view class="view-more" @click="goCommentList" v-if="product.commentStats?.total > 3">
+          <text>查看全部{{ product.commentStats?.total }}条评价</text>
+          <text class="arrow">›</text>
+        </view>
+      </view>
+
+      <!-- 暂无评价 -->
+      <view class="no-comment" v-else>
+        <text>暂无评价，快来抢沙发吧~</text>
       </view>
     </view>
 
@@ -53,11 +142,11 @@
     <!-- 底部操作栏 -->
     <view class="bottom-bar safe-area-bottom">
       <view class="action-item" @click="goHome">
-        <uni-icons type="home" size="24" color="#666" />
+        <text class="action-icon">🏠</text>
         <text>首页</text>
       </view>
       <view class="action-item" @click="goCart">
-        <uni-icons type="cart" size="24" color="#666" />
+        <text class="action-icon">🛒</text>
         <text>购物车</text>
         <view class="badge" v-if="cartStore.totalCount > 0">
           {{ cartStore.totalCount > 99 ? '99+' : cartStore.totalCount }}
@@ -79,7 +168,7 @@
             <text class="stock">库存：{{ product.stock }}</text>
           </view>
           <view class="close" @click="closePopup">
-            <uni-icons type="closeempty" size="20" color="#999" />
+            <text>×</text>
           </view>
         </view>
         <view class="popup-body">
@@ -87,11 +176,11 @@
             <text class="label">数量</text>
             <view class="quantity-control">
               <view class="btn" @click="decreaseQuantity">
-                <uni-icons type="minus" size="18" color="#666" />
+                <text>－</text>
               </view>
               <input type="number" v-model="quantity" class="input" />
               <view class="btn" @click="increaseQuantity">
-                <uni-icons type="plus" size="18" color="#666" />
+                <text>＋</text>
               </view>
             </view>
           </view>
@@ -105,7 +194,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { productApi } from '@/api'
 import { useCartStore } from '@/store/cart'
@@ -122,7 +211,10 @@ const quantityPopup = ref(null)
 const images = computed(() => {
   if (product.value.images) {
     try {
-      return JSON.parse(product.value.images)
+      const imgs = typeof product.value.images === 'string'
+        ? JSON.parse(product.value.images)
+        : product.value.images
+      return imgs.length > 0 ? imgs : [product.value.mainImage || product.value.image]
     } catch (e) {
       return [product.value.mainImage || product.value.image]
     }
@@ -156,10 +248,18 @@ const loadAddress = () => {
   }
 }
 
-// 预览图片
+// 预览商品图片
 const previewImage = (index) => {
   uni.previewImage({
     urls: images.value,
+    current: index
+  })
+}
+
+// 预览评价图片
+const previewCommentImage = (imgs, index) => {
+  uni.previewImage({
+    urls: imgs,
     current: index
   })
 }
@@ -181,9 +281,21 @@ const goHome = () => {
   uni.switchTab({ url: '/pages/index/index' })
 }
 
+// 去商户详情
+const goMerchant = () => {
+  if (product.value.merchant?.id) {
+    uni.navigateTo({ url: `/pages/merchant/detail?id=${product.value.merchant.id}` })
+  }
+}
+
 // 去购物车
 const goCart = () => {
   uni.switchTab({ url: '/pages/cart/index' })
+}
+
+// 去评价列表
+const goCommentList = () => {
+  uni.navigateTo({ url: `/pages/product/comments?id=${productId.value}` })
 }
 
 // 显示数量弹窗
@@ -270,7 +382,7 @@ const confirmAction = async () => {
 
   .price {
     font-size: 48rpx;
-    color: $danger-color;
+    color: #e53935;
     font-weight: bold;
   }
 
@@ -289,7 +401,7 @@ const confirmAction = async () => {
 
     text {
       font-size: 24rpx;
-      color: $danger-color;
+      color: #e53935;
     }
   }
 
@@ -326,6 +438,88 @@ const confirmAction = async () => {
   }
 }
 
+/* 商户卡片 */
+.merchant-card {
+  display: flex;
+  align-items: center;
+  margin-top: 20rpx;
+  padding: 24rpx 30rpx;
+  background-color: #fff;
+
+  .merchant-logo {
+    width: 80rpx;
+    height: 80rpx;
+    border-radius: 12rpx;
+    flex-shrink: 0;
+  }
+
+  .merchant-info {
+    flex: 1;
+    margin-left: 20rpx;
+    overflow: hidden;
+
+    .merchant-name-row {
+      display: flex;
+      align-items: center;
+    }
+
+    .merchant-name {
+      font-size: 30rpx;
+      color: #333;
+      font-weight: 500;
+    }
+
+    .merchant-rating {
+      display: flex;
+      align-items: center;
+      margin-left: 16rpx;
+      padding: 2rpx 10rpx;
+      background-color: #fff7e6;
+      border-radius: 8rpx;
+
+      .rating-icon {
+        font-size: 22rpx;
+        color: #ff9800;
+      }
+
+      .rating-value {
+        font-size: 22rpx;
+        color: #ff9800;
+        margin-left: 4rpx;
+      }
+    }
+
+    .merchant-desc {
+      display: block;
+      font-size: 24rpx;
+      color: #999;
+      margin-top: 8rpx;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  .enter-shop {
+    display: flex;
+    align-items: center;
+    padding: 12rpx 24rpx;
+    background-color: $primary-color;
+    border-radius: 30rpx;
+    flex-shrink: 0;
+
+    text {
+      font-size: 24rpx;
+      color: #fff;
+    }
+
+    .arrow {
+      margin-left: 4rpx;
+      font-size: 28rpx;
+    }
+  }
+}
+
 /* 配送信息 */
 .delivery-info {
   margin-top: 20rpx;
@@ -353,6 +547,213 @@ const confirmAction = async () => {
         text-overflow: ellipsis;
         white-space: nowrap;
       }
+    }
+
+    .arrow {
+      font-size: 28rpx;
+      color: #999;
+    }
+  }
+}
+
+/* 评价区域 */
+.comment-section {
+  margin-top: 20rpx;
+  padding: 24rpx 30rpx;
+  background-color: #fff;
+
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 20rpx;
+    border-bottom: 1rpx solid #f0f0f0;
+
+    .left {
+      display: flex;
+      align-items: center;
+
+      .title {
+        font-size: 30rpx;
+        color: #333;
+        font-weight: bold;
+      }
+
+      .count {
+        font-size: 26rpx;
+        color: #999;
+        margin-left: 8rpx;
+      }
+    }
+
+    .right {
+      display: flex;
+      align-items: center;
+
+      .rate {
+        font-size: 26rpx;
+        color: #ff9800;
+      }
+
+      .arrow {
+        font-size: 28rpx;
+        color: #999;
+        margin-left: 8rpx;
+      }
+    }
+  }
+
+  .comment-stats {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 30rpx 0;
+    background-color: #fafafa;
+    border-radius: 12rpx;
+    margin-top: 20rpx;
+
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0 60rpx;
+
+      .stat-value {
+        font-size: 40rpx;
+        color: #ff9800;
+        font-weight: bold;
+      }
+
+      .stat-label {
+        font-size: 24rpx;
+        color: #999;
+        margin-top: 8rpx;
+      }
+    }
+
+    .stat-divider {
+      width: 1rpx;
+      height: 60rpx;
+      background-color: #ddd;
+    }
+  }
+
+  .comment-list {
+    margin-top: 20rpx;
+  }
+
+  .comment-item {
+    padding: 24rpx 0;
+    border-bottom: 1rpx solid #f0f0f0;
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    .comment-header {
+      display: flex;
+      align-items: center;
+
+      .user-avatar {
+        width: 64rpx;
+        height: 64rpx;
+        border-radius: 50%;
+      }
+
+      .user-info {
+        flex: 1;
+        margin-left: 16rpx;
+
+        .user-name {
+          font-size: 26rpx;
+          color: #333;
+        }
+
+        .rating-stars {
+          margin-top: 4rpx;
+
+          .star {
+            font-size: 22rpx;
+            color: #ddd;
+
+            &.active {
+              color: #ff9800;
+            }
+          }
+        }
+      }
+
+      .comment-time {
+        font-size: 22rpx;
+        color: #999;
+      }
+    }
+
+    .comment-content {
+      display: block;
+      font-size: 28rpx;
+      color: #333;
+      line-height: 1.6;
+      margin-top: 16rpx;
+    }
+
+    .comment-images {
+      display: flex;
+      flex-wrap: wrap;
+      margin-top: 16rpx;
+
+      image {
+        width: 160rpx;
+        height: 160rpx;
+        border-radius: 8rpx;
+        margin-right: 12rpx;
+        margin-bottom: 12rpx;
+      }
+    }
+
+    .merchant-reply {
+      margin-top: 16rpx;
+      padding: 16rpx;
+      background-color: #f5f5f5;
+      border-radius: 8rpx;
+
+      .reply-label {
+        font-size: 24rpx;
+        color: #ff9800;
+      }
+
+      .reply-content {
+        font-size: 24rpx;
+        color: #666;
+      }
+    }
+  }
+
+  .view-more {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 24rpx 0;
+
+    text {
+      font-size: 26rpx;
+      color: #666;
+    }
+
+    .arrow {
+      font-size: 28rpx;
+      color: #999;
+      margin-left: 8rpx;
+    }
+  }
+
+  .no-comment {
+    text-align: center;
+    padding: 60rpx 0;
+
+    text {
+      font-size: 26rpx;
+      color: #999;
     }
   }
 }
@@ -404,6 +805,10 @@ const confirmAction = async () => {
     padding: 0 24rpx;
     position: relative;
 
+    .action-icon {
+      font-size: 36rpx;
+    }
+
     text {
       font-size: 20rpx;
       color: #666;
@@ -420,7 +825,7 @@ const confirmAction = async () => {
       text-align: center;
       font-size: 20rpx;
       color: #fff;
-      background-color: $danger-color;
+      background-color: #e53935;
       border-radius: 16rpx;
       padding: 0 8rpx;
     }
@@ -465,7 +870,7 @@ const confirmAction = async () => {
     image {
       width: 180rpx;
       height: 180rpx;
-      border-radius: $border-radius-base;
+      border-radius: 12rpx;
     }
 
     .info {
@@ -477,7 +882,7 @@ const confirmAction = async () => {
 
       .price {
         font-size: 40rpx;
-        color: $danger-color;
+        color: #e53935;
         font-weight: bold;
       }
 
@@ -490,6 +895,11 @@ const confirmAction = async () => {
 
     .close {
       padding: 10rpx;
+
+      text {
+        font-size: 40rpx;
+        color: #999;
+      }
     }
   }
 
@@ -519,6 +929,11 @@ const confirmAction = async () => {
         justify-content: center;
         background-color: #f5f5f5;
         border-radius: 8rpx;
+
+        text {
+          font-size: 32rpx;
+          color: #666;
+        }
       }
 
       .input {

@@ -99,6 +99,15 @@ export const systemApi = {
   testStorage: (data) => request({ url: '/admin/system/storage/test', method: 'post', data })
 }
 
+// ============ 评价管理 ============
+export const reviewApi = {
+  getList: (params) => request({ url: '/admin/reviews', method: 'get', params }),
+  getDetail: (id) => request({ url: `/admin/reviews/${id}`, method: 'get' }),
+  updateStatus: (id, status) => request({ url: `/admin/reviews/${id}/status`, method: 'put', data: { status } }),
+  delete: (id) => request({ url: `/admin/reviews/${id}`, method: 'delete' }),
+  getStats: (params) => request({ url: '/admin/reviews/stats', method: 'get', params })
+}
+
 // ============ 统计数据 ============
 export const statisticsApi = {
   getDashboard: () => request({ url: '/admin/dashboard', method: 'get' }),

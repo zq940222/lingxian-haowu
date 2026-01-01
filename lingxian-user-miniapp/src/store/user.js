@@ -32,8 +32,45 @@ export const useUserStore = defineStore('user', {
       }
     },
 
-    // 微信登录
+    // 微信登录（开发模式使用模拟登录）
     async wxLogin() {
+      // 开发环境：使用模拟登录，跳过微信授权
+      const isDev = true // 正式上线时改为 false
+
+      if (isDev) {
+        // 模拟登录数据
+        const mockData = {
+          token: 'mock_token_' + Date.now(),
+          refreshToken: 'mock_refresh_' + Date.now(),
+          userInfo: {
+            id: 1,
+            nickname: '测试用户',
+            avatar: '/static/images/default-avatar.png',
+            phone: '138****8888',
+            gender: 1,
+            points: 100,
+            balance: '0.00'
+          }
+        }
+
+        // 调用后端模拟登录接口
+        try {
+          const res = await authApi.login({ code: 'mock_1' })
+          if (res.code === 200) {
+            this.setLoginInfo(res.data)
+            return res.data
+          }
+        } catch (e) {
+          // 后端接口失败时使用纯前端模拟
+          console.log('使用纯前端模拟登录')
+        }
+
+        // 纯前端模拟（后端不可用时）
+        this.setLoginInfo(mockData)
+        return mockData
+      }
+
+      // 正式环境：调用微信登录
       return new Promise((resolve, reject) => {
         uni.login({
           provider: 'weixin',

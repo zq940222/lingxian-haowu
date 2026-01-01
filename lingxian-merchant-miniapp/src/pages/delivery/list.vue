@@ -141,7 +141,10 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
+import { useMerchantStore, VerifyStatus } from '@/store/merchant'
 import { deliveryApi, orderApi } from '@/api'
+
+const merchantStore = useMerchantStore()
 
 const currentTab = ref('pending')
 const orders = ref([])
@@ -159,7 +162,26 @@ const isAllSelected = computed(() => {
   return orders.value.length > 0 && selectedIds.value.length === orders.value.length
 })
 
-onShow(() => {
+onShow(async () => {
+  // 检查登录状态
+  if (!merchantStore.checkLoginStatus()) {
+    return
+  }
+
+  // 从服务器获取最新的审核状态
+  try {
+    const statusData = await merchantStore.fetchApplyStatus()
+    if (statusData.verifyStatus !== VerifyStatus.APPROVED) {
+      uni.reLaunch({ url: '/pages/apply/status' })
+      return
+    }
+  } catch (e) {
+    if (merchantStore.verifyStatus !== VerifyStatus.APPROVED) {
+      uni.reLaunch({ url: '/pages/apply/status' })
+      return
+    }
+  }
+
   resetAndLoad()
   loadCounts()
 })
@@ -223,9 +245,12 @@ const loadOrders = async () => {
       orders.value = page.value === 1 ? list : [...orders.value, ...list]
       page.value++
       noMore.value = list.length < 10
+    } else {
+      uni.showToast({ title: res.message || '加载失败', icon: 'none' })
     }
   } catch (e) {
     console.error('加载配送列表失败', e)
+    uni.showToast({ title: '加载失败，请重试', icon: 'none' })
   } finally {
     loading.value = false
     refreshing.value = false
@@ -270,10 +295,12 @@ const batchDelivery = async () => {
   if (selectedIds.value.length === 0) return
 
   try {
-    await uni.showModal({
+    const modalRes = await uni.showModal({
       title: '提示',
       content: `确定开始配送选中的${selectedIds.value.length}个订单？`
     })
+
+    if (!modalRes.confirm) return
 
     uni.showLoading({ title: '处理中...' })
     const res = await deliveryApi.batchDelivery(selectedIds.value)
@@ -281,11 +308,15 @@ const batchDelivery = async () => {
 
     if (res.code === 200) {
       uni.showToast({ title: '批量配送成功', icon: 'success' })
+      selectedIds.value = []
       resetAndLoad()
       loadCounts()
+    } else {
+      uni.showToast({ title: res.message || '操作失败', icon: 'none' })
     }
   } catch (e) {
     uni.hideLoading()
+    uni.showToast({ title: '操作失败，请重试', icon: 'none' })
   }
 }
 
@@ -300,30 +331,40 @@ const startDelivery = async (order) => {
     const res = await orderApi.startDelivery(order.id)
     if (res.code === 200) {
       uni.showToast({ title: '开始配送', icon: 'success' })
-      resetAndLoad()
-      loadCounts()
+      // 更新本地状态
+      orders.value = orders.value.filter(o => o.id !== order.id)
+      pendingCount.value = Math.max(0, pendingCount.value - 1)
+      deliveringCount.value += 1
+    } else {
+      uni.showToast({ title: res.message || '操作失败', icon: 'none' })
     }
   } catch (e) {
     console.error('开始配送失败', e)
+    uni.showToast({ title: '操作失败，请重试', icon: 'none' })
   }
 }
 
 // 完成配送
 const completeDelivery = async (order) => {
   try {
-    await uni.showModal({
+    const modalRes = await uni.showModal({
       title: '提示',
       content: '确认已完成配送？'
     })
 
+    if (!modalRes.confirm) return
+
     const res = await orderApi.completeDelivery(order.id)
     if (res.code === 200) {
       uni.showToast({ title: '配送完成', icon: 'success' })
-      resetAndLoad()
-      loadCounts()
+      // 更新本地状态
+      orders.value = orders.value.filter(o => o.id !== order.id)
+      deliveringCount.value = Math.max(0, deliveringCount.value - 1)
+    } else {
+      uni.showToast({ title: res.message || '操作失败', icon: 'none' })
     }
   } catch (e) {
-    // 取消或失败
+    console.error('完成配送失败', e)
   }
 }
 

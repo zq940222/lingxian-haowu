@@ -184,8 +184,29 @@ public class MerchantAuthController {
         MerchantUser merchantUser = merchantUserService.getOne(new LambdaQueryWrapper<MerchantUser>()
                 .eq(MerchantUser::getPhone, phone));
 
+        LocalDateTime now = LocalDateTime.now();
+        boolean isNewUser = false;
+
+        // 开发环境：如果用户不存在则自动创建
         if (merchantUser == null) {
-            return Result.failed("账号不存在");
+            if ("dev".equals(activeProfile)) {
+                // 开发环境自动创建用户
+                merchantUser = new MerchantUser();
+                merchantUser.setPhone(phone);
+                merchantUser.setOpenid("phone_" + phone);
+                merchantUser.setNickname("商户" + phone.substring(phone.length() - 4));
+                merchantUser.setAvatar("");
+                merchantUser.setRole("owner");
+                merchantUser.setStatus(1);
+                merchantUser.setLastLoginTime(now);
+                merchantUser.setCreateTime(now);
+                merchantUser.setUpdateTime(now);
+                merchantUserService.save(merchantUser);
+                isNewUser = true;
+                log.info("开发环境自动创建商户用户: userId={}, phone={}", merchantUser.getId(), phone);
+            } else {
+                return Result.failed("账号不存在");
+            }
         }
 
         // TODO: 实际项目中需要验证密码（需要在数据库中添加密码字段）
@@ -195,10 +216,11 @@ public class MerchantAuthController {
         }
 
         // 更新登录时间
-        LocalDateTime now = LocalDateTime.now();
-        merchantUser.setLastLoginTime(now);
-        merchantUser.setUpdateTime(now);
-        merchantUserService.updateById(merchantUser);
+        if (!isNewUser) {
+            merchantUser.setLastLoginTime(now);
+            merchantUser.setUpdateTime(now);
+            merchantUserService.updateById(merchantUser);
+        }
 
         // 生成 token
         String token = jwtUtil.generateToken(merchantUser.getId(), merchantUser.getOpenid());
@@ -208,6 +230,7 @@ public class MerchantAuthController {
         Map<String, Object> result = new HashMap<>();
         result.put("token", token);
         result.put("refreshToken", refreshToken);
+        result.put("isNewUser", isNewUser);
 
         // 用户基本信息
         Map<String, Object> userInfo = new HashMap<>();
@@ -226,7 +249,7 @@ public class MerchantAuthController {
                 result.put("verifyStatus", merchant.getVerifyStatus());
             }
         } else {
-            result.put("verifyStatus", 0);
+            result.put("verifyStatus", 0); // 未提交申请
         }
 
         return Result.success(result);

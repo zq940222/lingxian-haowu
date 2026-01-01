@@ -30,7 +30,7 @@
         <view class="form-item">
           <text class="label">店铺Logo</text>
           <view class="upload-box" @click="uploadLogo">
-            <image v-if="form.logo" :src="form.logo" mode="aspectFill" />
+            <image v-if="previewUrls.logo" :src="previewUrls.logo" mode="aspectFill" />
             <view v-else class="upload-placeholder">
               <uni-icons type="plusempty" size="40" color="#ccc" />
               <text>上传Logo</text>
@@ -124,7 +124,7 @@
         <view class="form-item">
           <text class="label required">营业执照照片</text>
           <view class="upload-box license" @click="uploadLicense">
-            <image v-if="form.licenseImage" :src="form.licenseImage" mode="aspectFill" />
+            <image v-if="previewUrls.licenseImage" :src="previewUrls.licenseImage" mode="aspectFill" />
             <view v-else class="upload-placeholder">
               <uni-icons type="camera" size="40" color="#ccc" />
               <text>上传营业执照</text>
@@ -135,7 +135,7 @@
         <view class="form-item">
           <text class="label required">身份证正面</text>
           <view class="upload-box id-card" @click="uploadIdCardFront">
-            <image v-if="form.idCardFront" :src="form.idCardFront" mode="aspectFill" />
+            <image v-if="previewUrls.idCardFront" :src="previewUrls.idCardFront" mode="aspectFill" />
             <view v-else class="upload-placeholder">
               <uni-icons type="contact" size="40" color="#ccc" />
               <text>上传身份证正面</text>
@@ -146,7 +146,7 @@
         <view class="form-item">
           <text class="label required">身份证反面</text>
           <view class="upload-box id-card" @click="uploadIdCardBack">
-            <image v-if="form.idCardBack" :src="form.idCardBack" mode="aspectFill" />
+            <image v-if="previewUrls.idCardBack" :src="previewUrls.idCardBack" mode="aspectFill" />
             <view v-else class="upload-placeholder">
               <uni-icons type="contact" size="40" color="#ccc" />
               <text>上传身份证反面</text>
@@ -168,10 +168,12 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useMerchantStore } from '@/store/merchant'
+import { uploadApi } from '@/api'
 
 const merchantStore = useMerchantStore()
 
 const rejectRemark = ref('')
+const uploading = ref(false)
 
 const form = ref({
   shopName: '',
@@ -187,6 +189,14 @@ const form = ref({
   longitude: null,
   latitude: null,
   businessLicense: '',
+  licenseImage: '',
+  idCardFront: '',
+  idCardBack: ''
+})
+
+// 图片预览URL（用于显示）
+const previewUrls = ref({
+  logo: '',
   licenseImage: '',
   idCardFront: '',
   idCardBack: ''
@@ -227,40 +237,56 @@ const chooseLocation = () => {
   })
 }
 
-const uploadImage = (callback) => {
+// 选择并上传图片到服务器
+const uploadImage = (fieldName) => {
+  if (uploading.value) return
+
   uni.chooseImage({
     count: 1,
     sizeType: ['compressed'],
     sourceType: ['album', 'camera'],
-    success: (res) => {
+    success: async (res) => {
       const tempFilePath = res.tempFilePaths[0]
-      callback(tempFilePath)
+
+      try {
+        uploading.value = true
+        uni.showLoading({ title: '上传中...' })
+
+        // 上传到服务器
+        const uploadRes = await uploadApi.uploadImage(tempFilePath)
+
+        // 存储路径保存到表单（用于提交到数据库）
+        form.value[fieldName] = uploadRes.url
+        // 预览URL用于页面显示
+        previewUrls.value[fieldName] = uploadRes.previewUrl
+
+        uni.hideLoading()
+        uni.showToast({ title: '上传成功', icon: 'success' })
+      } catch (e) {
+        uni.hideLoading()
+        console.error('上传失败:', e)
+        uni.showToast({ title: e.message || '上传失败', icon: 'none' })
+      } finally {
+        uploading.value = false
+      }
     }
   })
 }
 
 const uploadLogo = () => {
-  uploadImage((path) => {
-    form.value.logo = path
-  })
+  uploadImage('logo')
 }
 
 const uploadLicense = () => {
-  uploadImage((path) => {
-    form.value.licenseImage = path
-  })
+  uploadImage('licenseImage')
 }
 
 const uploadIdCardFront = () => {
-  uploadImage((path) => {
-    form.value.idCardFront = path
-  })
+  uploadImage('idCardFront')
 }
 
 const uploadIdCardBack = () => {
-  uploadImage((path) => {
-    form.value.idCardBack = path
-  })
+  uploadImage('idCardBack')
 }
 
 const validateForm = () => {
@@ -342,6 +368,13 @@ const loadMerchantInfo = async () => {
         longitude: info.longitude,
         latitude: info.latitude,
         businessLicense: info.businessLicense || '',
+        licenseImage: info.licenseImage || '',
+        idCardFront: info.idCardFront || '',
+        idCardBack: info.idCardBack || ''
+      }
+      // 加载原有的预览URL（API返回的已经是完整URL）
+      previewUrls.value = {
+        logo: info.logo || '',
         licenseImage: info.licenseImage || '',
         idCardFront: info.idCardFront || '',
         idCardBack: info.idCardBack || ''

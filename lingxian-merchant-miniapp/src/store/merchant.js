@@ -101,7 +101,7 @@ export const useMerchantStore = defineStore('merchant', {
           this.setLoginInfo(res.data)
           return res.data
         }
-        throw new Error(res.message)
+        throw new Error(res.message || '登录失败')
       } catch (e) {
         throw e
       }
@@ -120,16 +120,18 @@ export const useMerchantStore = defineStore('merchant', {
                   this.setLoginInfo(res.data)
                   resolve(res.data)
                 } else {
-                  reject(res.message)
+                  reject(res.message || '登录失败')
                 }
               } catch (e) {
-                reject(e)
+                reject(e.message || '登录失败')
               }
             } else {
-              reject('登录失败')
+              reject('获取微信授权失败')
             }
           },
-          fail: reject
+          fail: (err) => {
+            reject(err.errMsg || '微信登录失败')
+          }
         })
       })
     },

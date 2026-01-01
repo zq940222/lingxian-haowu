@@ -85,8 +85,10 @@ export const productApi = {
 
 // ============ 分类 ============
 export const categoryApi = {
-  // 获取分类列表
+  // 获取分类列表（扁平结构）
   getList: () => get('/merchant/categories'),
+  // 获取分类树形结构（用于二级联动选择）
+  getTree: () => get('/merchant/categories/tree'),
   // 添加分类
   add: (data) => post('/merchant/categories', data),
   // 更新分类
@@ -153,4 +155,72 @@ export const notificationApi = {
   getSettings: () => get('/merchant/notification/settings'),
   // 更新通知设置
   updateSettings: (data) => put('/merchant/notification/settings', data)
+}
+
+// ============ 钱包/提现 ============
+export const walletApi = {
+  // 获取钱包余额
+  getBalance: () => get('/merchant/wallet/balance'),
+  // 获取钱包明细
+  getRecords: (params) => get('/merchant/wallet/records', params),
+  // 获取提现账户列表
+  getAccounts: () => get('/merchant/wallet/accounts'),
+  // 添加提现账户
+  addAccount: (data) => post('/merchant/wallet/accounts', data),
+  // 删除提现账户
+  removeAccount: (id) => del(`/merchant/wallet/accounts/${id}`),
+  // 设置默认提现账户
+  setDefaultAccount: (id) => put(`/merchant/wallet/accounts/${id}/default`),
+  // 发起提现
+  withdraw: (data) => post('/merchant/wallet/withdraw', data),
+  // 获取提现记录
+  getWithdrawRecords: (params) => get('/merchant/wallet/withdraw/records', params),
+  // 获取提现详情
+  getWithdrawDetail: (id) => get(`/merchant/wallet/withdraw/${id}`)
+}
+
+// ============ 文件上传 ============
+export const uploadApi = {
+  // 上传图片（返回 Promise）
+  uploadImage: (filePath) => {
+    return new Promise((resolve, reject) => {
+      // 获取上传基础URL，需要包含 /api 前缀
+      let baseUrl
+      // #ifdef H5
+      baseUrl = '/api'
+      // #endif
+      // #ifndef H5
+      baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8086/api'
+      // #endif
+      const token = uni.getStorageSync('merchant_token')
+
+      uni.uploadFile({
+        url: `${baseUrl}/merchant/upload/image`,
+        filePath: filePath,
+        name: 'file',
+        header: {
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        success: (res) => {
+          if (res.statusCode === 200) {
+            try {
+              const data = JSON.parse(res.data)
+              if (data.code === 200) {
+                resolve(data.data)
+              } else {
+                reject(new Error(data.message || '上传失败'))
+              }
+            } catch (e) {
+              reject(new Error('解析响应失败'))
+            }
+          } else {
+            reject(new Error(`上传失败: ${res.statusCode}`))
+          }
+        },
+        fail: (err) => {
+          reject(new Error(err.errMsg || '上传失败'))
+        }
+      })
+    })
+  }
 }

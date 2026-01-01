@@ -130,6 +130,30 @@
       "style": {
         "navigationBarTitleText": "修改申请"
       }
+    },
+    {
+      "path": "pages/wallet/index",
+      "style": {
+        "navigationBarTitleText": "我的钱包"
+      }
+    },
+    {
+      "path": "pages/wallet/withdraw",
+      "style": {
+        "navigationBarTitleText": "提现"
+      }
+    },
+    {
+      "path": "pages/wallet/account",
+      "style": {
+        "navigationBarTitleText": "提现账户"
+      }
+    },
+    {
+      "path": "pages/wallet/records",
+      "style": {
+        "navigationBarTitleText": "提现记录"
+      }
     }
   ],
   "globalStyle": {

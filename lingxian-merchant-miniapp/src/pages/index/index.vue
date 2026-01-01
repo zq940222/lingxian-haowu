@@ -32,7 +32,7 @@
           <text class="value">{{ todayStats.deliveryCount }}</text>
           <text class="label">已配送</text>
         </view>
-        <view class="stat-item" @click="goOrderList('1')">
+        <view class="stat-item" @click="goOrderList('2')">
           <text class="value highlight">{{ todayStats.pendingCount }}</text>
           <text class="label">待处理</text>
         </view>
@@ -41,7 +41,7 @@
 
     <!-- 快捷入口 -->
     <view class="quick-entry">
-      <view class="entry-item" @click="goOrderList('1')">
+      <view class="entry-item" @click="goOrderList('2')">
         <view class="icon-wrap pending">
           <uni-icons type="list" size="28" color="#fff" />
         </view>
@@ -74,7 +74,7 @@
     <view class="section" v-if="pendingOrders.length > 0">
       <view class="section-header">
         <text class="title">待处理订单</text>
-        <view class="more" @click="goOrderList('1')">
+        <view class="more" @click="goOrderList('2')">
           <text>全部</text>
           <uni-icons type="right" size="14" color="#999" />
         </view>
@@ -121,7 +121,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app'
-import { useMerchantStore } from '@/store/merchant'
+import { useMerchantStore, VerifyStatus } from '@/store/merchant'
 import { dashboardApi, orderApi, shopApi } from '@/api'
 
 const merchantStore = useMerchantStore()
@@ -135,10 +135,29 @@ const todayStats = ref({
 })
 const pendingOrders = ref([])
 
-onShow(() => {
-  if (merchantStore.isLogin) {
-    loadData()
+onShow(async () => {
+  // 检查登录状态
+  if (!merchantStore.checkLoginStatus()) {
+    return
   }
+
+  // 从服务器获取最新的审核状态
+  try {
+    const statusData = await merchantStore.fetchApplyStatus()
+    // 检查审核状态，未审核通过则跳转到申请状态页
+    if (statusData.verifyStatus !== VerifyStatus.APPROVED) {
+      uni.reLaunch({ url: '/pages/apply/status' })
+      return
+    }
+  } catch (e) {
+    // 如果获取失败，使用本地存储的状态
+    if (merchantStore.verifyStatus !== VerifyStatus.APPROVED) {
+      uni.reLaunch({ url: '/pages/apply/status' })
+      return
+    }
+  }
+
+  loadData()
 })
 
 onPullDownRefresh(async () => {
@@ -149,33 +168,46 @@ onPullDownRefresh(async () => {
 // 加载数据
 const loadData = async () => {
   try {
+    // 获取今日统计和待接单订单（状态2：已支付待接单）
     const [statsRes, ordersRes] = await Promise.all([
       dashboardApi.getTodayStats(),
-      orderApi.getList({ status: 1, page: 1, pageSize: 5 })
+      orderApi.getList({ status: 2, page: 1, pageSize: 5 })
     ])
 
     if (statsRes.code === 200) {
-      todayStats.value = statsRes.data
+      const stats = statsRes.data
+      todayStats.value = {
+        orderCount: stats.orderCount || 0,
+        salesAmount: stats.salesAmount || '0.00',
+        deliveryCount: stats.newCustomers || 0, // 使用新客户数代替（或后续调整）
+        pendingCount: 0 // 稍后从订单数据获取
+      }
     }
 
     if (ordersRes.code === 200) {
       pendingOrders.value = ordersRes.data.records || []
+      // 更新待处理数量
+      todayStats.value.pendingCount = ordersRes.data.total || 0
     }
 
     shopStatus.value = merchantStore.merchantInfo?.shopStatus || 0
   } catch (e) {
     console.error('加载数据失败', e)
+    uni.showToast({ title: '加载失败，请重试', icon: 'none' })
   }
 }
 
 // 切换营业状态
 const toggleShopStatus = async () => {
   const newStatus = shopStatus.value === 1 ? 0 : 1
+
   try {
-    await uni.showModal({
+    const modalRes = await uni.showModal({
       title: '提示',
       content: `确定${newStatus === 1 ? '开始营业' : '暂停营业'}吗？`
     })
+
+    if (!modalRes.confirm) return
 
     const res = await shopApi.updateStatus(newStatus)
     if (res.code === 200) {
@@ -185,9 +217,12 @@ const toggleShopStatus = async () => {
         title: newStatus === 1 ? '已开始营业' : '已暂停营业',
         icon: 'success'
       })
+    } else {
+      uni.showToast({ title: res.message || '操作失败', icon: 'none' })
     }
   } catch (e) {
-    // 取消或失败
+    console.error('切换营业状态失败', e)
+    uni.showToast({ title: '操作失败，请重试', icon: 'none' })
   }
 }
 
@@ -197,31 +232,40 @@ const acceptOrder = async (order) => {
     const res = await orderApi.accept(order.id)
     if (res.code === 200) {
       uni.showToast({ title: '接单成功', icon: 'success' })
-      loadData()
+      // 从列表中移除已接单的订单
+      pendingOrders.value = pendingOrders.value.filter(o => o.id !== order.id)
+      todayStats.value.pendingCount = Math.max(0, todayStats.value.pendingCount - 1)
+    } else {
+      uni.showToast({ title: res.message || '接单失败', icon: 'none' })
     }
   } catch (e) {
     console.error('接单失败', e)
+    uni.showToast({ title: '接单失败，请重试', icon: 'none' })
   }
 }
 
 // 拒单
 const rejectOrder = async (order) => {
   try {
-    const { content } = await uni.showModal({
+    const modalRes = await uni.showModal({
       title: '拒单原因',
       editable: true,
       placeholderText: '请输入拒单原因'
     })
 
-    if (content) {
-      const res = await orderApi.reject(order.id, content)
+    if (modalRes.confirm && modalRes.content) {
+      const res = await orderApi.reject(order.id, modalRes.content)
       if (res.code === 200) {
         uni.showToast({ title: '已拒单', icon: 'success' })
-        loadData()
+        // 从列表中移除已拒单的订单
+        pendingOrders.value = pendingOrders.value.filter(o => o.id !== order.id)
+        todayStats.value.pendingCount = Math.max(0, todayStats.value.pendingCount - 1)
+      } else {
+        uni.showToast({ title: res.message || '拒单失败', icon: 'none' })
       }
     }
   } catch (e) {
-    // 取消
+    console.error('拒单失败', e)
   }
 }
 

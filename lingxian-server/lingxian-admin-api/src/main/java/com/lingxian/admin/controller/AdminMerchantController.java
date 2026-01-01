@@ -3,9 +3,12 @@ package com.lingxian.admin.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lingxian.common.entity.Merchant;
+import com.lingxian.common.entity.MerchantInfoAudit;
 import com.lingxian.common.result.PageResult;
 import com.lingxian.common.result.Result;
+import com.lingxian.common.service.MerchantInfoAuditService;
 import com.lingxian.common.service.MerchantService;
+import com.lingxian.common.util.ImageUrlUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -15,6 +18,10 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -25,6 +32,10 @@ import java.util.Map;
 public class AdminMerchantController {
 
     private final MerchantService merchantService;
+    private final MerchantInfoAuditService merchantInfoAuditService;
+    private final ImageUrlUtil imageUrlUtil;
+
+    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @GetMapping
     @Operation(summary = "获取商户列表")
@@ -54,6 +65,11 @@ public class AdminMerchantController {
 
         Page<Merchant> pageResult = merchantService.page(new Page<>(page, size), wrapper);
 
+        // 转换图片URL
+        for (Merchant merchant : pageResult.getRecords()) {
+            convertMerchantImageUrls(merchant);
+        }
+
         return Result.success(PageResult.of(pageResult.getTotal(), pageResult.getCurrent(), pageResult.getSize(), pageResult.getRecords()));
     }
 
@@ -70,6 +86,11 @@ public class AdminMerchantController {
 
         Page<Merchant> pageResult = merchantService.page(new Page<>(page, size), wrapper);
 
+        // 转换图片URL
+        for (Merchant merchant : pageResult.getRecords()) {
+            convertMerchantImageUrls(merchant);
+        }
+
         return Result.success(PageResult.of(pageResult.getTotal(), pageResult.getCurrent(), pageResult.getSize(), pageResult.getRecords()));
     }
 
@@ -82,6 +103,9 @@ public class AdminMerchantController {
         if (merchant == null) {
             return Result.failed("商户不存在");
         }
+
+        // 转换图片URL
+        convertMerchantImageUrls(merchant);
 
         return Result.success(merchant);
     }
@@ -160,88 +184,35 @@ public class AdminMerchantController {
             @Parameter(description = "商户名称") @RequestParam(required = false) String merchantName) {
         log.info("获取商户信息变更审核列表: page={}, size={}, status={}, merchantName={}", page, size, status, merchantName);
 
-        // TODO: 实际实现需要从 merchant_info_audit 表查询
-        // 这里返回模拟数据
-        java.util.List<Map<String, Object>> records = new java.util.ArrayList<>();
-
-        // 模拟数据1：修改了店铺名称和头像
-        Map<String, Object> item1 = new java.util.HashMap<>();
-        item1.put("id", 1L);
-        item1.put("merchantId", 1001L);
-        item1.put("merchantName", "铃鲜好物旗舰店");
-        // 当前信息
-        Map<String, Object> currentInfo1 = new java.util.HashMap<>();
-        currentInfo1.put("shopLogo", "https://via.placeholder.com/100x100?text=Current");
-        currentInfo1.put("shopName", "铃鲜好物旗舰店");
-        currentInfo1.put("phone", "13812345678");
-        currentInfo1.put("address", "北京市朝阳区建国路88号");
-        item1.put("currentInfo", currentInfo1);
-        // 待审核信息
-        Map<String, Object> pendingInfo1 = new java.util.HashMap<>();
-        pendingInfo1.put("shopLogo", "https://via.placeholder.com/100x100?text=New");
-        pendingInfo1.put("shopName", "铃鲜好物官方旗舰店");
-        pendingInfo1.put("phone", "13812345678");
-        pendingInfo1.put("address", "北京市朝阳区建国路88号");
-        item1.put("pendingInfo", pendingInfo1);
-        // 变更字段列表
-        java.util.List<String> changedFields1 = new java.util.ArrayList<>();
-        changedFields1.add("shopLogo");
-        changedFields1.add("shopName");
-        item1.put("changedFields", changedFields1);
-        item1.put("status", 1); // 待审核
-        item1.put("applyTime", "2024-01-15 10:30:00");
-        item1.put("auditTime", null);
-        item1.put("rejectReason", null);
-        item1.put("monthlyModifyCount", 1); // 本月第1次修改
-        records.add(item1);
-
-        // 模拟数据2：修改了地址和电话
-        Map<String, Object> item2 = new java.util.HashMap<>();
-        item2.put("id", 2L);
-        item2.put("merchantId", 1002L);
-        item2.put("merchantName", "生鲜直供店");
-        // 当前信息
-        Map<String, Object> currentInfo2 = new java.util.HashMap<>();
-        currentInfo2.put("shopLogo", "https://via.placeholder.com/100x100?text=Old");
-        currentInfo2.put("shopName", "生鲜直供店");
-        currentInfo2.put("phone", "13900001111");
-        currentInfo2.put("address", "上海市浦东新区张江路100号");
-        item2.put("currentInfo", currentInfo2);
-        // 待审核信息
-        Map<String, Object> pendingInfo2 = new java.util.HashMap<>();
-        pendingInfo2.put("shopLogo", "https://via.placeholder.com/100x100?text=Old");
-        pendingInfo2.put("shopName", "生鲜直供店");
-        pendingInfo2.put("phone", "13900002222");
-        pendingInfo2.put("address", "上海市浦东新区世纪大道200号");
-        item2.put("pendingInfo", pendingInfo2);
-        // 变更字段列表
-        java.util.List<String> changedFields2 = new java.util.ArrayList<>();
-        changedFields2.add("phone");
-        changedFields2.add("address");
-        item2.put("changedFields", changedFields2);
-        item2.put("status", 1); // 待审核
-        item2.put("applyTime", "2024-01-15 14:20:00");
-        item2.put("auditTime", null);
-        item2.put("rejectReason", null);
-        item2.put("monthlyModifyCount", 2); // 本月第2次修改
-        records.add(item2);
-
-        // 根据status过滤
+        // 构建查询条件
+        LambdaQueryWrapper<MerchantInfoAudit> wrapper = new LambdaQueryWrapper<>();
         if (status != null) {
-            records = records.stream()
-                    .filter(r -> status.equals(r.get("status")))
-                    .collect(java.util.stream.Collectors.toList());
+            // 前端状态码转换为数据库状态码: 前端1->数据库0, 前端2->数据库1, 前端3->数据库2
+            int dbStatus = status - 1;
+            wrapper.eq(MerchantInfoAudit::getStatus, dbStatus);
+        }
+        wrapper.orderByDesc(MerchantInfoAudit::getCreateTime);
+
+        // 分页查询
+        Page<MerchantInfoAudit> pageResult = merchantInfoAuditService.page(new Page<>(page, size), wrapper);
+
+        // 转换为前端需要的格式
+        List<Map<String, Object>> records = new ArrayList<>();
+        for (MerchantInfoAudit audit : pageResult.getRecords()) {
+            // 获取商户信息
+            Merchant merchant = merchantService.getById(audit.getMerchantId());
+            if (merchant == null) continue;
+
+            // 如果需要按商户名称过滤
+            if (StringUtils.hasText(merchantName) && !merchant.getName().contains(merchantName)) {
+                continue;
+            }
+
+            Map<String, Object> item = buildAuditItemMap(audit, merchant);
+            records.add(item);
         }
 
-        // 根据商户名称过滤
-        if (StringUtils.hasText(merchantName)) {
-            final String searchName = merchantName;
-            records = records.stream()
-                    .filter(r -> ((String) r.get("merchantName")).contains(searchName))
-                    .collect(java.util.stream.Collectors.toList());
-        }
-
-        return Result.success(PageResult.of((long) records.size(), (long) page, (long) size, records));
+        return Result.success(PageResult.of(pageResult.getTotal(), pageResult.getCurrent(), pageResult.getSize(), records));
     }
 
     @GetMapping("/info-audits/{id}")
@@ -249,40 +220,17 @@ public class AdminMerchantController {
     public Result<Map<String, Object>> getInfoAuditDetail(@PathVariable Long id) {
         log.info("获取商户信息变更审核详情: id={}", id);
 
-        // TODO: 实际实现从数据库查询
-        Map<String, Object> detail = new java.util.HashMap<>();
-        detail.put("id", id);
-        detail.put("merchantId", 1001L);
-        detail.put("merchantName", "铃鲜好物旗舰店");
+        MerchantInfoAudit audit = merchantInfoAuditService.getById(id);
+        if (audit == null) {
+            return Result.failed("审核记录不存在");
+        }
 
-        // 当前信息
-        Map<String, Object> currentInfo = new java.util.HashMap<>();
-        currentInfo.put("shopLogo", "https://via.placeholder.com/100x100?text=Current");
-        currentInfo.put("shopName", "铃鲜好物旗舰店");
-        currentInfo.put("phone", "13812345678");
-        currentInfo.put("address", "北京市朝阳区建国路88号");
-        detail.put("currentInfo", currentInfo);
+        Merchant merchant = merchantService.getById(audit.getMerchantId());
+        if (merchant == null) {
+            return Result.failed("商户不存在");
+        }
 
-        // 待审核信息
-        Map<String, Object> pendingInfo = new java.util.HashMap<>();
-        pendingInfo.put("shopLogo", "https://via.placeholder.com/100x100?text=New");
-        pendingInfo.put("shopName", "铃鲜好物官方旗舰店");
-        pendingInfo.put("phone", "13812345678");
-        pendingInfo.put("address", "北京市朝阳区建国路88号");
-        detail.put("pendingInfo", pendingInfo);
-
-        // 变更字段
-        java.util.List<String> changedFields = new java.util.ArrayList<>();
-        changedFields.add("shopLogo");
-        changedFields.add("shopName");
-        detail.put("changedFields", changedFields);
-
-        detail.put("status", 1);
-        detail.put("applyTime", "2024-01-15 10:30:00");
-        detail.put("auditTime", null);
-        detail.put("rejectReason", null);
-        detail.put("monthlyModifyCount", 1);
-
+        Map<String, Object> detail = buildAuditItemMap(audit, merchant);
         return Result.success(detail);
     }
 
@@ -291,21 +239,153 @@ public class AdminMerchantController {
     public Result<Void> auditMerchantInfo(
             @PathVariable Long id,
             @RequestBody Map<String, Object> body) {
-        Integer status = (Integer) body.get("status"); // 2-通过, 3-拒绝
+        Integer frontendStatus = (Integer) body.get("status"); // 前端: 2-通过, 3-拒绝
         String rejectReason = (String) body.get("rejectReason");
-        log.info("审核商户信息变更: id={}, status={}, rejectReason={}", id, status, rejectReason);
+        log.info("审核商户信息变更: id={}, status={}, rejectReason={}", id, frontendStatus, rejectReason);
 
-        // TODO: 实际实现
-        // 1. 查询 merchant_info_audit 记录
-        // 2. 如果通过(status=2)：
-        //    - 根据 changedFields 更新商户表对应字段
-        //    - 更新审核记录状态为已通过
-        //    - 清空商户的 infoAuditStatus
-        // 3. 如果拒绝(status=3)：
-        //    - 更新审核记录状态和拒绝原因
-        //    - 更新商户的 infoAuditStatus 为已拒绝
-        //    - 商户端可重新提交修改
+        MerchantInfoAudit audit = merchantInfoAuditService.getById(id);
+        if (audit == null) {
+            return Result.failed("审核记录不存在");
+        }
+
+        if (audit.getStatus() != 0) {
+            return Result.failed("该记录已审核");
+        }
+
+        // 前端状态码转换为数据库状态码: 前端2->数据库1(通过), 前端3->数据库2(拒绝)
+        int dbStatus = frontendStatus - 1;
+
+        LocalDateTime now = LocalDateTime.now();
+
+        if (dbStatus == 1) {
+            // 通过审核：更新商户表对应字段
+            Merchant merchant = merchantService.getById(audit.getMerchantId());
+            if (merchant != null) {
+                if (audit.getNewShopName() != null) {
+                    merchant.setName(audit.getNewShopName());
+                }
+                if (audit.getNewLogo() != null) {
+                    merchant.setLogo(audit.getNewLogo());
+                }
+                if (audit.getNewPhone() != null) {
+                    merchant.setContactPhone(audit.getNewPhone());
+                }
+                if (audit.getNewAddress() != null) {
+                    merchant.setAddress(audit.getNewAddress());
+                }
+                if (audit.getNewLongitude() != null) {
+                    merchant.setLongitude(audit.getNewLongitude());
+                }
+                if (audit.getNewLatitude() != null) {
+                    merchant.setLatitude(audit.getNewLatitude());
+                }
+                merchant.setUpdateTime(now);
+                merchantService.updateById(merchant);
+            }
+        }
+
+        // 更新审核记录
+        audit.setStatus(dbStatus);
+        audit.setAuditRemark(rejectReason);
+        audit.setAuditTime(now);
+        audit.setUpdateTime(now);
+        merchantInfoAuditService.updateById(audit);
 
         return Result.success();
+    }
+
+    /**
+     * 构建审核记录的Map数据
+     */
+    private Map<String, Object> buildAuditItemMap(MerchantInfoAudit audit, Merchant merchant) {
+        Map<String, Object> item = new HashMap<>();
+        item.put("id", audit.getId());
+        item.put("merchantId", audit.getMerchantId());
+        item.put("merchantName", merchant.getName());
+
+        // 当前信息
+        Map<String, Object> currentInfo = new HashMap<>();
+        currentInfo.put("shopLogo", imageUrlUtil.generateUrl(audit.getOldLogo()));
+        currentInfo.put("shopName", audit.getOldShopName());
+        currentInfo.put("phone", audit.getOldPhone());
+        currentInfo.put("address", audit.getOldAddress());
+        item.put("currentInfo", currentInfo);
+
+        // 待审核信息
+        Map<String, Object> pendingInfo = new HashMap<>();
+        pendingInfo.put("shopLogo", imageUrlUtil.generateUrl(audit.getNewLogo()));
+        pendingInfo.put("shopName", audit.getNewShopName());
+        pendingInfo.put("phone", audit.getNewPhone());
+        pendingInfo.put("address", audit.getNewAddress());
+        item.put("pendingInfo", pendingInfo);
+
+        // 变更字段列表
+        List<String> changedFields = new ArrayList<>();
+        if (audit.getNewShopName() != null && !audit.getNewShopName().equals(audit.getOldShopName())) {
+            changedFields.add("shopName");
+        }
+        if (audit.getNewLogo() != null && !audit.getNewLogo().equals(audit.getOldLogo())) {
+            changedFields.add("shopLogo");
+        }
+        if (audit.getNewPhone() != null && !audit.getNewPhone().equals(audit.getOldPhone())) {
+            changedFields.add("phone");
+        }
+        if (audit.getNewAddress() != null && !audit.getNewAddress().equals(audit.getOldAddress())) {
+            changedFields.add("address");
+        }
+        item.put("changedFields", changedFields);
+
+        // 状态映射: 数据库 0-待审核 1-已通过 2-已拒绝 -> 前端 1-待审核 2-已通过 3-已拒绝
+        int frontendStatus = audit.getStatus() + 1;
+        item.put("status", frontendStatus);
+
+        item.put("applyTime", audit.getCreateTime() != null ? audit.getCreateTime().format(DATE_TIME_FORMATTER) : null);
+        item.put("auditTime", audit.getAuditTime() != null ? audit.getAuditTime().format(DATE_TIME_FORMATTER) : null);
+        item.put("rejectReason", audit.getAuditRemark());
+
+        // 计算本月修改次数
+        int monthlyCount = countMonthlyModifications(audit.getMerchantId());
+        item.put("monthlyModifyCount", monthlyCount);
+
+        return item;
+    }
+
+    /**
+     * 统计商户本月的信息变更次数
+     */
+    private int countMonthlyModifications(Long merchantId) {
+        LocalDateTime startOfMonth = LocalDateTime.now().withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0);
+        long count = merchantInfoAuditService.count(new LambdaQueryWrapper<MerchantInfoAudit>()
+                .eq(MerchantInfoAudit::getMerchantId, merchantId)
+                .ge(MerchantInfoAudit::getCreateTime, startOfMonth));
+        return (int) count;
+    }
+
+    /**
+     * 转换商户图片URL（将存储路径转换为可访问的URL）
+     */
+    private void convertMerchantImageUrls(Merchant merchant) {
+        if (merchant == null) return;
+
+        // 转换logo
+        if (merchant.getLogo() != null && !merchant.getLogo().isEmpty()) {
+            merchant.setLogo(imageUrlUtil.generateUrl(merchant.getLogo()));
+        }
+        // 转换banner
+        if (merchant.getBanner() != null && !merchant.getBanner().isEmpty()) {
+            merchant.setBanner(imageUrlUtil.generateUrl(merchant.getBanner()));
+        }
+        // 转换营业执照照片
+        if (merchant.getLicenseImage() != null && !merchant.getLicenseImage().isEmpty()) {
+            merchant.setLicenseImage(imageUrlUtil.generateUrl(merchant.getLicenseImage()));
+        }
+        // 转换身份证正面
+        if (merchant.getIdCardFront() != null && !merchant.getIdCardFront().isEmpty()) {
+            merchant.setIdCardFront(imageUrlUtil.generateUrl(merchant.getIdCardFront()));
+        }
+        // 转换身份证反面
+        if (merchant.getIdCardBack() != null && !merchant.getIdCardBack().isEmpty()) {
+            merchant.setIdCardBack(imageUrlUtil.generateUrl(merchant.getIdCardBack()));
+        }
     }
 }

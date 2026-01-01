@@ -236,8 +236,46 @@ const cancelOrder = async () => {
   }
 }
 
+// 模拟支付（开发环境）
+const mockPayment = () => {
+  return new Promise((resolve, reject) => {
+    uni.showModal({
+      title: '模拟支付',
+      content: `支付金额：¥${order.value.payAmount}`,
+      confirmText: '确认支付',
+      cancelText: '取消',
+      success: (res) => {
+        if (res.confirm) {
+          resolve()
+        } else {
+          reject(new Error('用户取消支付'))
+        }
+      }
+    })
+  })
+}
+
 // 支付订单
 const payOrder = async () => {
+  // 开发环境：使用模拟支付
+  const isDev = true // 正式上线时改为 false
+
+  if (isDev) {
+    try {
+      await mockPayment()
+      uni.showToast({ title: '支付成功', icon: 'success' })
+      // 模拟更新订单状态
+      order.value.status = 1 // 待接单
+      setTimeout(() => {
+        loadOrder()
+      }, 1500)
+    } catch (e) {
+      uni.showToast({ title: '支付取消', icon: 'none' })
+    }
+    return
+  }
+
+  // 正式环境：调用微信支付
   try {
     const res = await orderApi.pay(orderId.value)
     if (res.code === 200) {
@@ -304,22 +342,22 @@ const reorder = async () => {
   display: flex;
   align-items: center;
   padding: 40rpx 30rpx;
-  background: linear-gradient(135deg, #1890ff, #36cfc9);
+  background: linear-gradient(135deg, #22c55e, #16a34a);
 
   &.pending {
-    background: linear-gradient(135deg, #ff9800, #ffb74d);
+    background: linear-gradient(135deg, #f97316, #fb923c);
   }
 
   &.delivery {
-    background: linear-gradient(135deg, #1890ff, #36cfc9);
+    background: linear-gradient(135deg, #3b82f6, #60a5fa);
   }
 
   &.done {
-    background: linear-gradient(135deg, #52c41a, #95de64);
+    background: linear-gradient(135deg, #22c55e, #4ade80);
   }
 
   &.cancel {
-    background: linear-gradient(135deg, #999, #bbb);
+    background: linear-gradient(135deg, #9ca3af, #d1d5db);
   }
 
   .status-icon {
@@ -594,7 +632,7 @@ const reorder = async () => {
     }
 
     &.primary {
-      background-color: $primary-color;
+      background-color: #22c55e;
       color: #fff;
     }
   }

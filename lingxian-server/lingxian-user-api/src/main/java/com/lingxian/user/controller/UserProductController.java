@@ -3,10 +3,16 @@ package com.lingxian.user.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lingxian.common.entity.GroupActivity;
+import com.lingxian.common.entity.Merchant;
 import com.lingxian.common.entity.Product;
+import com.lingxian.common.entity.ProductComment;
+import com.lingxian.common.entity.User;
 import com.lingxian.common.result.Result;
 import com.lingxian.common.service.GroupActivityService;
+import com.lingxian.common.service.MerchantService;
+import com.lingxian.common.service.ProductCommentService;
 import com.lingxian.common.service.ProductService;
+import com.lingxian.common.service.UserService;
 import com.lingxian.common.util.ImageUrlUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -15,9 +21,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -28,7 +40,12 @@ public class UserProductController {
 
     private final ProductService productService;
     private final GroupActivityService groupActivityService;
+    private final MerchantService merchantService;
+    private final ProductCommentService commentService;
+    private final UserService userService;
     private final ImageUrlUtil imageUrlUtil;
+
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     @GetMapping("/recommend")
     @Operation(summary = "获取推荐商品")
@@ -139,6 +156,24 @@ public class UserProductController {
         result.put("categoryId", product.getCategoryId());
         result.put("merchantId", product.getMerchantId());
 
+        // 查询商户信息
+        if (product.getMerchantId() != null) {
+            Merchant merchant = merchantService.getById(product.getMerchantId());
+            if (merchant != null) {
+                Map<String, Object> merchantInfo = new HashMap<>();
+                merchantInfo.put("id", merchant.getId());
+                merchantInfo.put("name", merchant.getName());
+                merchantInfo.put("logo", imageUrlUtil.generateUrl(merchant.getLogo()));
+                merchantInfo.put("description", merchant.getDescription());
+                merchantInfo.put("rating", merchant.getRating());
+                merchantInfo.put("address", merchant.getAddress());
+                merchantInfo.put("province", merchant.getProvince());
+                merchantInfo.put("city", merchant.getCity());
+                merchantInfo.put("district", merchant.getDistrict());
+                result.put("merchant", merchantInfo);
+            }
+        }
+
         // 查询是否有进行中的拼团活动
         LocalDateTime now = LocalDateTime.now();
         GroupActivity groupActivity = groupActivityService.getOne(new LambdaQueryWrapper<GroupActivity>()
@@ -157,7 +192,153 @@ public class UserProductController {
             result.put("groupEnabled", false);
         }
 
+        // 查询评价统计
+        long totalComments = commentService.count(new LambdaQueryWrapper<ProductComment>()
+                .eq(ProductComment::getProductId, id)
+                .eq(ProductComment::getStatus, 1)
+                .eq(ProductComment::getDeleted, 0));
+
+        // 好评数（4-5星）
+        long goodComments = commentService.count(new LambdaQueryWrapper<ProductComment>()
+                .eq(ProductComment::getProductId, id)
+                .eq(ProductComment::getStatus, 1)
+                .eq(ProductComment::getDeleted, 0)
+                .ge(ProductComment::getRating, 4));
+
+        // 计算好评率
+        int goodRate = totalComments > 0 ? (int) (goodComments * 100 / totalComments) : 100;
+
+        // 计算平均评分
+        BigDecimal avgRating = BigDecimal.valueOf(5.0);
+        if (totalComments > 0) {
+            List<ProductComment> allComments = commentService.list(new LambdaQueryWrapper<ProductComment>()
+                    .eq(ProductComment::getProductId, id)
+                    .eq(ProductComment::getStatus, 1)
+                    .eq(ProductComment::getDeleted, 0)
+                    .select(ProductComment::getRating));
+            double avg = allComments.stream()
+                    .mapToInt(ProductComment::getRating)
+                    .average()
+                    .orElse(5.0);
+            avgRating = BigDecimal.valueOf(avg).setScale(1, RoundingMode.HALF_UP);
+        }
+
+        Map<String, Object> commentStats = new HashMap<>();
+        commentStats.put("total", totalComments);
+        commentStats.put("goodCount", goodComments);
+        commentStats.put("goodRate", goodRate);
+        commentStats.put("avgRating", avgRating);
+        result.put("commentStats", commentStats);
+
+        // 查询最新3条评价
+        List<ProductComment> latestComments = commentService.list(new LambdaQueryWrapper<ProductComment>()
+                .eq(ProductComment::getProductId, id)
+                .eq(ProductComment::getStatus, 1)
+                .eq(ProductComment::getDeleted, 0)
+                .orderByDesc(ProductComment::getCreateTime)
+                .last("LIMIT 3"));
+
+        List<Map<String, Object>> commentList = convertComments(latestComments);
+        result.put("comments", commentList);
+
         return Result.success(result);
+    }
+
+    @GetMapping("/{id}/comments")
+    @Operation(summary = "获取商品评价列表")
+    public Result<Map<String, Object>> getProductComments(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer pageSize,
+            @RequestParam(defaultValue = "all") String type) {
+
+        LambdaQueryWrapper<ProductComment> queryWrapper = new LambdaQueryWrapper<ProductComment>()
+                .eq(ProductComment::getProductId, id)
+                .eq(ProductComment::getStatus, 1)
+                .eq(ProductComment::getDeleted, 0);
+
+        // 按类型筛选
+        switch (type) {
+            case "good":
+                queryWrapper.ge(ProductComment::getRating, 4);
+                break;
+            case "medium":
+                queryWrapper.eq(ProductComment::getRating, 3);
+                break;
+            case "bad":
+                queryWrapper.le(ProductComment::getRating, 2);
+                break;
+            case "image":
+                queryWrapper.isNotNull(ProductComment::getImages)
+                        .ne(ProductComment::getImages, "")
+                        .ne(ProductComment::getImages, "[]");
+                break;
+        }
+
+        queryWrapper.orderByDesc(ProductComment::getCreateTime);
+
+        Page<ProductComment> pageResult = commentService.page(new Page<>(page, pageSize), queryWrapper);
+
+        List<Map<String, Object>> commentList = convertComments(pageResult.getRecords());
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("records", commentList);
+        result.put("total", pageResult.getTotal());
+        result.put("page", page);
+        result.put("pageSize", pageSize);
+
+        return Result.success(result);
+    }
+
+    /**
+     * 转换评价列表
+     */
+    private List<Map<String, Object>> convertComments(List<ProductComment> comments) {
+        if (comments == null || comments.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // 批量获取用户信息
+        List<Long> userIds = comments.stream()
+                .map(ProductComment::getUserId)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<Long, User> userMap = new HashMap<>();
+        if (!userIds.isEmpty()) {
+            List<User> users = userService.listByIds(userIds);
+            userMap = users.stream().collect(Collectors.toMap(User::getId, u -> u));
+        }
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (ProductComment comment : comments) {
+            Map<String, Object> item = new HashMap<>();
+            item.put("id", comment.getId());
+            item.put("content", comment.getContent());
+            item.put("rating", comment.getRating());
+            item.put("images", imageUrlUtil.generateUrlsFromJson(comment.getImages()));
+            item.put("createTime", comment.getCreateTime() != null ?
+                    comment.getCreateTime().format(DATE_FORMATTER) : "");
+            item.put("replyContent", comment.getReplyContent());
+            item.put("replyTime", comment.getReplyTime() != null ?
+                    comment.getReplyTime().format(DATE_FORMATTER) : "");
+
+            // 用户信息
+            User user = userMap.get(comment.getUserId());
+            if (comment.getIsAnonymous() == 1 || user == null) {
+                item.put("userName", "匿名用户");
+                item.put("userAvatar", "");
+            } else {
+                String nickname = user.getNickname();
+                if (nickname != null && nickname.length() > 1) {
+                    nickname = nickname.charAt(0) + "***" + nickname.charAt(nickname.length() - 1);
+                }
+                item.put("userName", nickname);
+                item.put("userAvatar", user.getAvatar());
+            }
+
+            result.add(item);
+        }
+        return result;
     }
 
     /**

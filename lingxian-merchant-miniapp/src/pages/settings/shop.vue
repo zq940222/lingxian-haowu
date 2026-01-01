@@ -163,7 +163,7 @@
 import { ref, reactive } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import { useMerchantStore } from '@/store/merchant'
-import { shopApi } from '@/api'
+import { shopApi, uploadApi } from '@/api'
 
 const merchantStore = useMerchantStore()
 
@@ -263,24 +263,16 @@ const changeAvatar = async () => {
     })
 
     uni.showLoading({ title: '上传中...' })
-    const uploadRes = await uni.uploadFile({
-      url: 'http://localhost:8086/api/merchant/upload',
-      filePath: res.tempFilePaths[0],
-      name: 'file',
-      header: {
-        'Authorization': `Bearer ${uni.getStorageSync('merchant_token')}`
-      }
-    })
-
-    const data = JSON.parse(uploadRes.data)
-    if (data.code === 200) {
-      form.value.shopLogo = data.data.url
-      uni.showToast({ title: '上传成功', icon: 'success' })
-    } else {
-      uni.showToast({ title: '上传失败', icon: 'none' })
-    }
+    // 使用统一的上传接口
+    const uploadRes = await uploadApi.uploadImage(res.tempFilePaths[0])
+    // uploadRes 包含 url(存储路径) 和 previewUrl(预览URL)
+    form.value.shopLogo = uploadRes.previewUrl
+    // 保存存储路径用于提交
+    form.value.shopLogoPath = uploadRes.url
+    uni.showToast({ title: '上传成功', icon: 'success' })
   } catch (e) {
     console.error('更换头像失败', e)
+    uni.showToast({ title: e.message || '上传失败', icon: 'none' })
   } finally {
     uni.hideLoading()
   }
@@ -348,11 +340,15 @@ const save = async () => {
 
     const data = {
       ...form.value,
+      // 如果有新上传的Logo，使用存储路径；否则保持原值
+      shopLogo: form.value.shopLogoPath || form.value.shopLogo,
       deliveryRange: form.value.deliveryRange ? parseFloat(form.value.deliveryRange) : 0,
       deliveryFee: form.value.deliveryFee ? parseFloat(form.value.deliveryFee) : 0,
       minOrderAmount: form.value.minOrderAmount ? parseFloat(form.value.minOrderAmount) : 0,
       freeDeliveryAmount: form.value.freeDeliveryAmount ? parseFloat(form.value.freeDeliveryAmount) : 0
     }
+    // 删除临时字段
+    delete data.shopLogoPath
 
     // 检查是否有需要审核的字段变更
     const needAudit = hasAuditFieldChanged()

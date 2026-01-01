@@ -24,7 +24,7 @@
         <view class="form-item">
           <text class="label">店铺Logo</text>
           <view class="upload-box" @click="uploadLogo">
-            <image v-if="form.logo" :src="form.logo" mode="aspectFill" />
+            <image v-if="previewUrls.logo" :src="previewUrls.logo" mode="aspectFill" />
             <view v-else class="upload-placeholder">
               <uni-icons type="plusempty" size="40" color="#ccc" />
               <text>上传Logo</text>
@@ -82,23 +82,46 @@
       <view class="section">
         <view class="section-title">店铺地址</view>
 
-        <view class="form-item" @click="chooseLocation">
-          <text class="label required">选择位置</text>
-          <view class="picker">
-            <text :class="{ placeholder: !fullAddress }">
-              {{ fullAddress || '请选择店铺位置' }}
-            </text>
-            <uni-icons type="location" size="16" color="#999" />
-          </view>
+        <view class="form-item">
+          <text class="label required">省份</text>
+          <input
+            v-model="form.province"
+            placeholder="请输入省份（如：广东省）"
+            maxlength="20"
+          />
+        </view>
+
+        <view class="form-item">
+          <text class="label required">城市</text>
+          <input
+            v-model="form.city"
+            placeholder="请输入城市（如：深圳市）"
+            maxlength="20"
+          />
+        </view>
+
+        <view class="form-item">
+          <text class="label required">区/县</text>
+          <input
+            v-model="form.district"
+            placeholder="请输入区/县（如：南山区）"
+            maxlength="20"
+          />
         </view>
 
         <view class="form-item">
           <text class="label required">详细地址</text>
           <input
             v-model="form.address"
-            placeholder="请输入详细地址（门牌号等）"
+            placeholder="请输入详细地址（街道、门牌号等）"
             maxlength="100"
           />
+        </view>
+
+        <!-- 可选：使用定位获取 -->
+        <view class="location-tip" @click="chooseLocation">
+          <uni-icons type="location" size="16" color="#1890ff" />
+          <text>使用定位自动填写</text>
         </view>
       </view>
 
@@ -118,7 +141,7 @@
         <view class="form-item">
           <text class="label required">营业执照照片</text>
           <view class="upload-box license" @click="uploadLicense">
-            <image v-if="form.licenseImage" :src="form.licenseImage" mode="aspectFill" />
+            <image v-if="previewUrls.licenseImage" :src="previewUrls.licenseImage" mode="aspectFill" />
             <view v-else class="upload-placeholder">
               <uni-icons type="camera" size="40" color="#ccc" />
               <text>上传营业执照</text>
@@ -129,7 +152,7 @@
         <view class="form-item">
           <text class="label required">身份证正面</text>
           <view class="upload-box id-card" @click="uploadIdCardFront">
-            <image v-if="form.idCardFront" :src="form.idCardFront" mode="aspectFill" />
+            <image v-if="previewUrls.idCardFront" :src="previewUrls.idCardFront" mode="aspectFill" />
             <view v-else class="upload-placeholder">
               <uni-icons type="contact" size="40" color="#ccc" />
               <text>上传身份证正面</text>
@@ -140,7 +163,7 @@
         <view class="form-item">
           <text class="label required">身份证反面</text>
           <view class="upload-box id-card" @click="uploadIdCardBack">
-            <image v-if="form.idCardBack" :src="form.idCardBack" mode="aspectFill" />
+            <image v-if="previewUrls.idCardBack" :src="previewUrls.idCardBack" mode="aspectFill" />
             <view v-else class="upload-placeholder">
               <uni-icons type="contact" size="40" color="#ccc" />
               <text>上传身份证反面</text>
@@ -152,18 +175,20 @@
 
     <!-- 提交按钮 -->
     <view class="submit-section">
-      <view class="agreement">
-        <view class="checkbox" @click="agreed = !agreed">
+      <view class="agreement" @click="agreed = !agreed">
+        <view class="checkbox-wrap">
           <uni-icons
             :type="agreed ? 'checkbox-filled' : 'circle'"
-            :color="agreed ? '#1890ff' : '#ccc'"
-            size="18"
+            :color="agreed ? '#1890ff' : '#999'"
+            size="22"
           />
         </view>
-        <text>我已阅读并同意</text>
-        <text class="link">《商户入驻协议》</text>
+        <view class="agreement-text">
+          <text>我已阅读并同意</text>
+          <text class="link" @click.stop="showAgreement">《商户入驻协议》</text>
+        </view>
       </view>
-      <button class="submit-btn" :disabled="!agreed" @click="handleSubmit">
+      <button class="submit-btn" :class="{ disabled: !agreed }" @click="handleSubmit">
         提交申请
       </button>
     </view>
@@ -173,8 +198,12 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useMerchantStore } from '@/store/merchant'
+import { uploadApi } from '@/api'
 
 const merchantStore = useMerchantStore()
+
+// 上传中状态
+const uploading = ref(false)
 
 const form = ref({
   shopName: '',
@@ -195,6 +224,14 @@ const form = ref({
   idCardBack: ''
 })
 
+// 图片预览URL（用于显示，存储路径无法直接在浏览器显示）
+const previewUrls = ref({
+  logo: '',
+  licenseImage: '',
+  idCardFront: '',
+  idCardBack: ''
+})
+
 const agreed = ref(false)
 
 const categoryOptions = [
@@ -208,72 +245,87 @@ const categoryOptions = [
   '其他'
 ]
 
-const fullAddress = computed(() => {
-  if (form.value.province) {
-    return `${form.value.province}${form.value.city}${form.value.district}`
-  }
-  return ''
-})
-
 const onCategoryChange = (e) => {
   form.value.category = categoryOptions[e.detail.value]
+}
+
+const showAgreement = () => {
+  uni.showModal({
+    title: '商户入驻协议',
+    content: '商户入驻协议内容...\n\n1. 商户需提供真实有效的营业执照和身份证信息\n2. 商户需遵守平台规则，诚信经营\n3. 商户需保证商品质量，确保食品安全\n4. 平台有权对违规商户进行处罚',
+    showCancel: false,
+    confirmText: '我知道了'
+  })
 }
 
 const chooseLocation = () => {
   uni.chooseLocation({
     success: (res) => {
-      form.value.address = res.address
+      // 填充详细地址
+      if (res.address) {
+        form.value.address = res.address
+      }
       form.value.longitude = res.longitude
       form.value.latitude = res.latitude
-      // 解析地址获取省市区
-      const address = res.address || ''
-      // 简单解析，实际项目建议使用腾讯/高德地图API
-      form.value.province = ''
-      form.value.city = ''
-      form.value.district = ''
+      uni.showToast({ title: '已获取位置，请补充省市区', icon: 'none' })
     },
-    fail: () => {
-      uni.showToast({ title: '请授权位置权限', icon: 'none' })
+    fail: (err) => {
+      console.log('定位失败', err)
+      uni.showToast({ title: '定位不可用，请手动输入地址', icon: 'none' })
     }
   })
 }
 
-const uploadImage = (callback) => {
+// 选择并上传图片到服务器
+const uploadImage = (fieldName) => {
+  if (uploading.value) return
+
   uni.chooseImage({
     count: 1,
     sizeType: ['compressed'],
     sourceType: ['album', 'camera'],
-    success: (res) => {
+    success: async (res) => {
       const tempFilePath = res.tempFilePaths[0]
-      // TODO: 上传到服务器
-      // 目前直接使用本地路径
-      callback(tempFilePath)
+
+      try {
+        uploading.value = true
+        uni.showLoading({ title: '上传中...' })
+
+        // 上传到服务器
+        const uploadRes = await uploadApi.uploadImage(tempFilePath)
+
+        // 存储路径保存到表单（用于提交到数据库）
+        form.value[fieldName] = uploadRes.url
+        // 预览URL用于页面显示
+        previewUrls.value[fieldName] = uploadRes.previewUrl
+
+        uni.hideLoading()
+        uni.showToast({ title: '上传成功', icon: 'success' })
+      } catch (e) {
+        uni.hideLoading()
+        console.error('上传失败:', e)
+        uni.showToast({ title: e.message || '上传失败', icon: 'none' })
+      } finally {
+        uploading.value = false
+      }
     }
   })
 }
 
 const uploadLogo = () => {
-  uploadImage((path) => {
-    form.value.logo = path
-  })
+  uploadImage('logo')
 }
 
 const uploadLicense = () => {
-  uploadImage((path) => {
-    form.value.licenseImage = path
-  })
+  uploadImage('licenseImage')
 }
 
 const uploadIdCardFront = () => {
-  uploadImage((path) => {
-    form.value.idCardFront = path
-  })
+  uploadImage('idCardFront')
 }
 
 const uploadIdCardBack = () => {
-  uploadImage((path) => {
-    form.value.idCardBack = path
-  })
+  uploadImage('idCardBack')
 }
 
 const validateForm = () => {
@@ -291,6 +343,18 @@ const validateForm = () => {
   }
   if (!form.value.contactPhone || form.value.contactPhone.length !== 11) {
     uni.showToast({ title: '请输入正确的联系电话', icon: 'none' })
+    return false
+  }
+  if (!form.value.province) {
+    uni.showToast({ title: '请输入省份', icon: 'none' })
+    return false
+  }
+  if (!form.value.city) {
+    uni.showToast({ title: '请输入城市', icon: 'none' })
+    return false
+  }
+  if (!form.value.district) {
+    uni.showToast({ title: '请输入区/县', icon: 'none' })
     return false
   }
   if (!form.value.address) {
@@ -474,6 +538,20 @@ const handleSubmit = async () => {
   }
 }
 
+.location-tip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20rpx;
+  margin-top: -10rpx;
+
+  text {
+    font-size: 26rpx;
+    color: #1890ff;
+    margin-left: 8rpx;
+  }
+}
+
 .submit-section {
   position: fixed;
   left: 0;
@@ -488,16 +566,24 @@ const handleSubmit = async () => {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 24rpx;
-    color: #666;
+    padding: 20rpx;
     margin-bottom: 20rpx;
+    background-color: #f9f9f9;
+    border-radius: 12rpx;
 
-    .checkbox {
-      margin-right: 8rpx;
+    .checkbox-wrap {
+      margin-right: 12rpx;
+      padding: 8rpx;
     }
 
-    .link {
-      color: $primary-color;
+    .agreement-text {
+      font-size: 26rpx;
+      color: #666;
+
+      .link {
+        color: $primary-color;
+        font-weight: 500;
+      }
     }
   }
 
@@ -511,8 +597,9 @@ const handleSubmit = async () => {
     border-radius: 48rpx;
     border: none;
 
-    &[disabled] {
-      background: #ccc;
+    &.disabled {
+      background: #ccc !important;
+      color: #999;
     }
   }
 }

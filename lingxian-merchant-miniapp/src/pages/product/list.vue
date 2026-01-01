@@ -12,26 +12,67 @@
     </view>
 
     <!-- 分类筛选 -->
-    <scroll-view class="category-scroll" scroll-x>
-      <view class="category-list">
-        <view
-          class="category-item"
-          :class="{ active: currentCategory === -1 }"
-          @click="selectCategory(-1)"
-        >
-          全部
+    <view class="filter-bar">
+      <view class="filter-item" @click="showCategoryPicker = true">
+        <text>{{ selectedCategoryText }}</text>
+        <uni-icons type="bottom" size="14" color="#666" />
+      </view>
+      <view class="filter-item" :class="{ active: statusFilter !== '' }" @click="toggleStatusFilter">
+        <text>{{ statusFilterText }}</text>
+        <uni-icons type="bottom" size="14" color="#666" />
+      </view>
+    </view>
+
+    <!-- 分类选择弹窗 -->
+    <uni-popup ref="categoryPopup" type="bottom" :is-mask-click="true" @maskClick="showCategoryPicker = false">
+      <view class="category-popup" v-if="showCategoryPicker">
+        <view class="popup-header">
+          <text class="cancel" @click="showCategoryPicker = false">取消</text>
+          <text class="title">选择分类</text>
+          <text class="confirm" @click="confirmCategory">确定</text>
         </view>
-        <view
-          class="category-item"
-          :class="{ active: currentCategory === item.id }"
-          v-for="item in categories"
-          :key="item.id"
-          @click="selectCategory(item.id)"
-        >
-          {{ item.name }}
+        <view class="category-content">
+          <!-- 一级分类 -->
+          <scroll-view class="category-column" scroll-y>
+            <view
+              class="category-option"
+              :class="{ active: tempCategoryIndexes[0] === -1 }"
+              @click="selectParentCategory(-1)"
+            >
+              全部分类
+            </view>
+            <view
+              class="category-option"
+              :class="{ active: tempCategoryIndexes[0] === index }"
+              v-for="(item, index) in categoryTree"
+              :key="item.id"
+              @click="selectParentCategory(index)"
+            >
+              {{ item.name }}
+            </view>
+          </scroll-view>
+          <!-- 二级分类 -->
+          <scroll-view class="category-column" scroll-y v-if="tempCategoryIndexes[0] >= 0">
+            <view
+              class="category-option"
+              :class="{ active: tempCategoryIndexes[1] === -1 }"
+              @click="selectChildCategory(-1)"
+            >
+              全部{{ categoryTree[tempCategoryIndexes[0]]?.name }}
+            </view>
+            <view
+              class="category-option"
+              :class="{ active: tempCategoryIndexes[1] === index }"
+              v-for="(item, index) in currentChildren"
+              :key="item.id"
+              @click="selectChildCategory(index)"
+            >
+              {{ item.name }}
+            </view>
+          </scroll-view>
         </view>
       </view>
-    </scroll-view>
+    </uni-popup>
 
     <!-- 商品列表 -->
     <scroll-view
@@ -43,7 +84,7 @@
       @refresherrefresh="onRefresh"
     >
       <view class="product-item" v-for="item in products" :key="item.id">
-        <image :src="item.image" mode="aspectFill" @click="goEdit(item.id)" />
+        <image :src="item.mainImage" mode="aspectFill" @click="goEdit(item.id)" />
         <view class="info" @click="goEdit(item.id)">
           <text class="name">{{ item.name }}</text>
           <view class="meta">
@@ -85,18 +126,84 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import { productApi, categoryApi } from '@/api'
 
 const keyword = ref('')
-const currentCategory = ref(-1)
-const categories = ref([])
 const products = ref([])
 const page = ref(1)
 const loading = ref(false)
 const noMore = ref(false)
 const refreshing = ref(false)
+
+// 分类相关
+const categoryTree = ref([])
+const showCategoryPicker = ref(false)
+const categoryPopup = ref(null)
+// 选中的分类索引 [一级索引, 二级索引]，-1表示全部
+const categoryIndexes = ref([-1, -1])
+// 临时选择索引（弹窗中使用）
+const tempCategoryIndexes = ref([-1, -1])
+
+// 当前一级分类下的子分类
+const currentChildren = computed(() => {
+  const parentIdx = tempCategoryIndexes.value[0]
+  if (parentIdx < 0 || !categoryTree.value[parentIdx]) return []
+  return categoryTree.value[parentIdx].children || []
+})
+
+// 选中的分类文本
+const selectedCategoryText = computed(() => {
+  const [parentIdx, childIdx] = categoryIndexes.value
+  if (parentIdx < 0) return '全部分类'
+  const parent = categoryTree.value[parentIdx]
+  if (!parent) return '全部分类'
+  if (childIdx < 0) return parent.name
+  const child = parent.children?.[childIdx]
+  return child ? `${parent.name}/${child.name}` : parent.name
+})
+
+// 获取当前选中的分类ID
+const currentCategoryId = computed(() => {
+  const [parentIdx, childIdx] = categoryIndexes.value
+  if (parentIdx < 0) return null
+  const parent = categoryTree.value[parentIdx]
+  if (!parent) return null
+  if (childIdx >= 0 && parent.children?.[childIdx]) {
+    return parent.children[childIdx].id
+  }
+  return parent.id
+})
+
+// 状态筛选
+const statusFilter = ref('')
+const statusFilterText = computed(() => {
+  if (statusFilter.value === '') return '全部状态'
+  return statusFilter.value === '1' ? '上架中' : '已下架'
+})
+
+// 切换状态筛选
+const toggleStatusFilter = () => {
+  if (statusFilter.value === '') {
+    statusFilter.value = '1'
+  } else if (statusFilter.value === '1') {
+    statusFilter.value = '0'
+  } else {
+    statusFilter.value = ''
+  }
+  resetAndLoad()
+}
+
+// 监听弹窗显示
+watch(showCategoryPicker, (val) => {
+  if (val) {
+    tempCategoryIndexes.value = [...categoryIndexes.value]
+    categoryPopup.value?.open()
+  } else {
+    categoryPopup.value?.close()
+  }
+})
 
 onLoad(() => {
   loadCategories()
@@ -106,16 +213,33 @@ onShow(() => {
   resetAndLoad()
 })
 
-// 加载分类
+// 加载分类（树形结构）
 const loadCategories = async () => {
   try {
-    const res = await categoryApi.getList()
+    const res = await categoryApi.getTree()
     if (res.code === 200) {
-      categories.value = res.data || []
+      categoryTree.value = res.data || []
     }
   } catch (e) {
     console.error('加载分类失败', e)
   }
+}
+
+// 选择一级分类
+const selectParentCategory = (index) => {
+  tempCategoryIndexes.value = [index, -1]
+}
+
+// 选择二级分类
+const selectChildCategory = (index) => {
+  tempCategoryIndexes.value[1] = index
+}
+
+// 确认分类选择
+const confirmCategory = () => {
+  categoryIndexes.value = [...tempCategoryIndexes.value]
+  showCategoryPicker.value = false
+  resetAndLoad()
 }
 
 // 重置并加载
@@ -124,13 +248,6 @@ const resetAndLoad = () => {
   products.value = []
   noMore.value = false
   loadProducts()
-}
-
-// 选择分类
-const selectCategory = (id) => {
-  if (currentCategory.value === id) return
-  currentCategory.value = id
-  resetAndLoad()
 }
 
 // 搜索
@@ -149,8 +266,11 @@ const loadProducts = async () => {
       pageSize: 10,
       keyword: keyword.value
     }
-    if (currentCategory.value !== -1) {
-      params.categoryId = currentCategory.value
+    if (currentCategoryId.value) {
+      params.categoryId = currentCategoryId.value
+    }
+    if (statusFilter.value !== '') {
+      params.status = statusFilter.value
     }
 
     const res = await productApi.getList(params)
@@ -299,28 +419,86 @@ const goEdit = (id) => {
   }
 }
 
-/* 分类滚动 */
-.category-scroll {
+/* 筛选栏 */
+.filter-bar {
+  display: flex;
   background-color: #fff;
   border-top: 1rpx solid #f0f0f0;
-  white-space: nowrap;
-}
+  padding: 16rpx 20rpx;
 
-.category-list {
-  display: inline-flex;
-  padding: 20rpx;
-
-  .category-item {
-    padding: 12rpx 32rpx;
+  .filter-item {
+    display: flex;
+    align-items: center;
+    padding: 12rpx 24rpx;
     margin-right: 20rpx;
     font-size: 26rpx;
     color: #666;
     background-color: #f5f5f5;
     border-radius: 30rpx;
 
+    text {
+      margin-right: 8rpx;
+    }
+
     &.active {
-      color: #fff;
-      background-color: $primary-color;
+      color: $primary-color;
+      background-color: rgba(24, 144, 255, 0.1);
+    }
+  }
+}
+
+/* 分类选择弹窗 */
+.category-popup {
+  background-color: #fff;
+  border-radius: 24rpx 24rpx 0 0;
+
+  .popup-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 28rpx 30rpx;
+    border-bottom: 1rpx solid #f0f0f0;
+
+    .title {
+      font-size: 32rpx;
+      font-weight: bold;
+      color: #333;
+    }
+
+    .cancel {
+      font-size: 28rpx;
+      color: #999;
+    }
+
+    .confirm {
+      font-size: 28rpx;
+      color: $primary-color;
+    }
+  }
+
+  .category-content {
+    display: flex;
+    height: 600rpx;
+
+    .category-column {
+      flex: 1;
+      height: 100%;
+
+      &:first-child {
+        background-color: #f5f5f5;
+      }
+
+      .category-option {
+        padding: 28rpx 30rpx;
+        font-size: 28rpx;
+        color: #333;
+
+        &.active {
+          color: $primary-color;
+          background-color: #fff;
+          font-weight: bold;
+        }
+      }
     }
   }
 }

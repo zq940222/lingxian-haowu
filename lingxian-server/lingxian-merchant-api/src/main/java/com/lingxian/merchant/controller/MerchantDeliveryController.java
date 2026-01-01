@@ -1,14 +1,18 @@
 package com.lingxian.merchant.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.lingxian.common.entity.*;
 import com.lingxian.common.result.PageResult;
 import com.lingxian.common.result.Result;
+import com.lingxian.common.service.*;
+import com.lingxian.common.util.ImageUrlUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -22,120 +26,218 @@ public class MerchantDeliveryController {
 
     private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
+    private final OrderService orderService;
+    private final OrderItemService orderItemService;
+    private final MerchantUserService merchantUserService;
+    private final ImageUrlUtil imageUrlUtil;
+
     @GetMapping("/pending")
     @Operation(summary = "获取待配送列表")
     public Result<PageResult<Map<String, Object>>> getPendingDeliveries(
+            @RequestHeader(value = "X-Merchant-User-Id", required = false) Long userId,
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer pageSize) {
-        return getDeliveryList(page, pageSize, "pending");
+        return getDeliveryList(userId, page, pageSize, 3); // 状态3：已接单待配送
     }
 
     @GetMapping("/delivering")
     @Operation(summary = "获取配送中列表")
     public Result<PageResult<Map<String, Object>>> getDeliveringList(
+            @RequestHeader(value = "X-Merchant-User-Id", required = false) Long userId,
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer pageSize) {
-        return getDeliveryList(page, pageSize, "delivering");
+        return getDeliveryList(userId, page, pageSize, 4); // 状态4：配送中
     }
 
     @GetMapping("/completed")
     @Operation(summary = "获取已完成列表")
     public Result<PageResult<Map<String, Object>>> getCompletedDeliveries(
+            @RequestHeader(value = "X-Merchant-User-Id", required = false) Long userId,
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer pageSize) {
-        return getDeliveryList(page, pageSize, "completed");
+        return getDeliveryList(userId, page, pageSize, 5); // 状态5：已完成
     }
 
-    private Result<PageResult<Map<String, Object>>> getDeliveryList(Integer page, Integer pageSize, String status) {
-        List<Map<String, Object>> orders = new ArrayList<>();
-
-        String[] names = {"张三", "李四", "王五", "赵六", "钱七"};
-        String[] phones = {"138****1234", "139****5678", "137****9012", "136****3456", "135****7890"};
-        String[] addresses = {
-            "北京市朝阳区建国路88号SOHO现代城A座1201",
-            "上海市浦东新区世纪大道100号",
-            "广州市天河区珠江新城华夏路30号",
-            "深圳市南山区科技园南路1号",
-            "杭州市西湖区文三路456号"
-        };
-
-        int total = status.equals("pending") ? 5 : (status.equals("delivering") ? 3 : 20);
-        int count = Math.min(pageSize, total - (page - 1) * pageSize);
-
-        for (int i = 0; i < count; i++) {
-            Map<String, Object> order = new HashMap<>();
-            int idx = i % 5;
-
-            order.put("id", (page - 1) * pageSize + i + 1);
-            order.put("orderNo", "DD" + System.currentTimeMillis() + String.format("%04d", i));
-            order.put("status", status);
-            order.put("receiverName", names[idx]);
-            order.put("receiverPhone", phones[idx]);
-            order.put("receiverAddress", addresses[idx]);
-            order.put("latitude", 39.9042 + idx * 0.01);
-            order.put("longitude", 116.4074 + idx * 0.01);
-            order.put("totalQuantity", 2 + i % 5);
-            order.put("payAmount", new BigDecimal("63.00").add(new BigDecimal(i * 10)));
-            order.put("createTime", LocalDateTime.now().minusHours(i + 1).format(formatter));
-            order.put("deliveryTime", i % 2 == 0 ? "今天 14:00-15:00" : null);
-
-            orders.add(order);
+    private Result<PageResult<Map<String, Object>>> getDeliveryList(Long userId, Integer page, Integer pageSize, Integer status) {
+        Long merchantId = getMerchantId(userId);
+        if (merchantId == null) {
+            return Result.failed("请先完成商户入驻");
         }
 
-        PageResult<Map<String, Object>> pageResult = PageResult.of((long) total, (long) page, (long) pageSize, orders);
+        // 构建查询条件
+        LambdaQueryWrapper<Order> wrapper = new LambdaQueryWrapper<Order>()
+                .eq(Order::getMerchantId, merchantId)
+                .eq(Order::getStatus, status)
+                .orderByDesc(Order::getCreateTime);
+
+        // 分页查询
+        Page<Order> pageData = orderService.page(new Page<>(page, pageSize), wrapper);
+
+        // 转换数据
+        List<Map<String, Object>> orders = new ArrayList<>();
+        for (Order order : pageData.getRecords()) {
+            Map<String, Object> orderMap = buildDeliveryMap(order);
+            orders.add(orderMap);
+        }
+
+        PageResult<Map<String, Object>> pageResult = PageResult.of(
+                pageData.getTotal(),
+                pageData.getCurrent(),
+                pageData.getSize(),
+                orders);
+
         return Result.success(pageResult);
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "获取配送详情")
-    public Result<Map<String, Object>> getDeliveryDetail(@PathVariable Long id) {
-        Map<String, Object> delivery = new HashMap<>();
-        delivery.put("id", id);
-        delivery.put("orderNo", "DD" + System.currentTimeMillis());
-        delivery.put("status", "delivering");
-        delivery.put("receiverName", "张三");
-        delivery.put("receiverPhone", "13812345678");
-        delivery.put("receiverAddress", "北京市朝阳区建国路88号SOHO现代城A座1201");
-        delivery.put("latitude", 39.9042);
-        delivery.put("longitude", 116.4074);
-        delivery.put("totalQuantity", 3);
-        delivery.put("totalAmount", new BigDecimal("98.00"));
-        delivery.put("deliveryFee", new BigDecimal("5.00"));
-        delivery.put("payAmount", new BigDecimal("103.00"));
-        delivery.put("createTime", LocalDateTime.now().minusHours(2).format(formatter));
-        delivery.put("deliveryStartTime", LocalDateTime.now().minusMinutes(30).format(formatter));
-        delivery.put("deliveryTime", "今天 14:00-15:00");
-        delivery.put("remark", "放门口即可");
+    public Result<Map<String, Object>> getDeliveryDetail(
+            @RequestHeader(value = "X-Merchant-User-Id", required = false) Long userId,
+            @PathVariable Long id) {
 
-        // 商品列表
-        List<Map<String, Object>> products = new ArrayList<>();
-        Map<String, Object> product1 = new HashMap<>();
-        product1.put("id", 1);
-        product1.put("name", "新鲜蔬菜套餐");
-        product1.put("image", "https://via.placeholder.com/100x100");
-        product1.put("price", new BigDecimal("28.00"));
-        product1.put("quantity", 2);
-        product1.put("spec", "500g/份");
-        products.add(product1);
+        Long merchantId = getMerchantId(userId);
+        if (merchantId == null) {
+            return Result.failed("请先完成商户入驻");
+        }
 
-        Map<String, Object> product2 = new HashMap<>();
-        product2.put("id", 2);
-        product2.put("name", "精选水果拼盘");
-        product2.put("image", "https://via.placeholder.com/100x100");
-        product2.put("price", new BigDecimal("42.00"));
-        product2.put("quantity", 1);
-        product2.put("spec", "混合装");
-        products.add(product2);
-        delivery.put("products", products);
+        Order order = orderService.getById(id);
+        if (order == null || !order.getMerchantId().equals(merchantId)) {
+            return Result.failed("订单不存在");
+        }
 
+        Map<String, Object> delivery = buildDeliveryMap(order);
         return Result.success(delivery);
     }
 
     @PostMapping("/batch")
     @Operation(summary = "批量开始配送")
-    public Result<Void> batchDelivery(@RequestBody Map<String, List<Long>> body) {
+    public Result<Void> batchDelivery(
+            @RequestHeader(value = "X-Merchant-User-Id", required = false) Long userId,
+            @RequestBody Map<String, List<Long>> body) {
+
+        Long merchantId = getMerchantId(userId);
+        if (merchantId == null) {
+            return Result.failed("请先完成商户入驻");
+        }
+
         List<Long> orderIds = body.get("orderIds");
-        log.info("批量配送: {}", orderIds);
+        if (orderIds == null || orderIds.isEmpty()) {
+            return Result.failed("请选择要配送的订单");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        int successCount = 0;
+
+        for (Long orderId : orderIds) {
+            Order order = orderService.getById(orderId);
+            if (order != null && order.getMerchantId().equals(merchantId) && order.getStatus() == 3) {
+                order.setStatus(4); // 配送中
+                order.setDeliveryTime(now);
+                order.setUpdateTime(now);
+                orderService.updateById(order);
+                successCount++;
+            }
+        }
+
+        log.info("批量配送: merchantId={}, orderIds={}, successCount={}", merchantId, orderIds, successCount);
         return Result.success();
+    }
+
+    /**
+     * 获取商户ID
+     */
+    private Long getMerchantId(Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        MerchantUser merchantUser = merchantUserService.getById(userId);
+        if (merchantUser == null || merchantUser.getMerchantId() == null) {
+            return null;
+        }
+        return merchantUser.getMerchantId();
+    }
+
+    /**
+     * 构建配送信息Map
+     */
+    private Map<String, Object> buildDeliveryMap(Order order) {
+        Map<String, Object> delivery = new HashMap<>();
+        delivery.put("id", order.getId());
+        delivery.put("orderNo", order.getOrderNo());
+        delivery.put("status", getStatusString(order.getStatus()));
+        delivery.put("receiverName", order.getReceiverName());
+        delivery.put("receiverPhone", maskPhone(order.getReceiverPhone()));
+        delivery.put("receiverAddress", buildFullAddress(order));
+        delivery.put("payAmount", order.getPayAmount());
+        delivery.put("remark", order.getRemark());
+
+        // 时间格式化
+        delivery.put("createTime", order.getCreateTime() != null ? order.getCreateTime().format(formatter) : null);
+        delivery.put("deliveryStartTime", order.getDeliveryTime() != null ? order.getDeliveryTime().format(formatter) : null);
+
+        // 获取订单商品
+        List<OrderItem> items = orderItemService.list(new LambdaQueryWrapper<OrderItem>()
+                .eq(OrderItem::getOrderId, order.getId()));
+
+        List<Map<String, Object>> products = new ArrayList<>();
+        int totalQuantity = 0;
+        for (OrderItem item : items) {
+            Map<String, Object> product = new HashMap<>();
+            product.put("id", item.getProductId());
+            product.put("name", item.getProductName());
+            product.put("image", imageUrlUtil.generateUrl(item.getProductImage()));
+            product.put("price", item.getPrice());
+            product.put("quantity", item.getQuantity());
+            product.put("spec", item.getSkuName());
+            products.add(product);
+            totalQuantity += item.getQuantity();
+        }
+        delivery.put("products", products);
+        delivery.put("totalQuantity", totalQuantity);
+
+        return delivery;
+    }
+
+    /**
+     * 获取配送状态字符串
+     */
+    private String getStatusString(Integer status) {
+        if (status == null) return "unknown";
+        switch (status) {
+            case 3: return "pending";
+            case 4: return "delivering";
+            case 5: return "completed";
+            default: return "unknown";
+        }
+    }
+
+    /**
+     * 手机号脱敏
+     */
+    private String maskPhone(String phone) {
+        if (phone == null || phone.length() < 11) {
+            return phone;
+        }
+        return phone.substring(0, 3) + "****" + phone.substring(7);
+    }
+
+    /**
+     * 构建完整地址
+     */
+    private String buildFullAddress(Order order) {
+        StringBuilder sb = new StringBuilder();
+        if (order.getReceiverProvince() != null) {
+            sb.append(order.getReceiverProvince());
+        }
+        if (order.getReceiverCity() != null) {
+            sb.append(order.getReceiverCity());
+        }
+        if (order.getReceiverDistrict() != null) {
+            sb.append(order.getReceiverDistrict());
+        }
+        if (order.getReceiverAddress() != null) {
+            sb.append(order.getReceiverAddress());
+        }
+        return sb.toString();
     }
 }

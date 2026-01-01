@@ -97,7 +97,10 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
+import { useMerchantStore, VerifyStatus } from '@/store/merchant'
 import { orderApi } from '@/api'
+
+const merchantStore = useMerchantStore()
 
 const statusTabs = ref([
   { label: '全部', value: -1, count: 0 },
@@ -120,7 +123,26 @@ onLoad((options) => {
   }
 })
 
-onShow(() => {
+onShow(async () => {
+  // 检查登录状态
+  if (!merchantStore.checkLoginStatus()) {
+    return
+  }
+
+  // 从服务器获取最新的审核状态
+  try {
+    const statusData = await merchantStore.fetchApplyStatus()
+    if (statusData.verifyStatus !== VerifyStatus.APPROVED) {
+      uni.reLaunch({ url: '/pages/apply/status' })
+      return
+    }
+  } catch (e) {
+    if (merchantStore.verifyStatus !== VerifyStatus.APPROVED) {
+      uni.reLaunch({ url: '/pages/apply/status' })
+      return
+    }
+  }
+
   resetAndLoad()
 })
 

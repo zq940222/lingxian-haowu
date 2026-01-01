@@ -108,19 +108,27 @@
 </template>
 
 <script setup>
+import { onShow } from '@dcloudio/uni-app'
 import { useUserStore } from '@/store/user'
 import { pointsApi } from '@/api'
 
 const userStore = useUserStore()
 
+onShow(() => {
+  userStore.checkLoginStatus()
+})
+
 // 处理登录
 const handleLogin = async () => {
   if (userStore.isLogin) return
 
+  uni.showLoading({ title: '登录中...' })
   try {
     await userStore.wxLogin()
+    uni.hideLoading()
     uni.showToast({ title: '登录成功', icon: 'success' })
   } catch (e) {
+    uni.hideLoading()
     uni.showToast({ title: e || '登录失败', icon: 'none' })
   }
 }
@@ -206,7 +214,7 @@ const goAbout = () => {
   justify-content: space-between;
   align-items: center;
   padding: 60rpx 30rpx 40rpx;
-  background: linear-gradient(135deg, $primary-color, #36cfc9);
+  background: linear-gradient(135deg, #22c55e, #16a34a);
 }
 
 .user-info {

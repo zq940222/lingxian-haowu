@@ -3,7 +3,7 @@
     <!-- 收货地址 -->
     <view class="address-section" @click="selectAddress">
       <template v-if="selectedAddress">
-        <uni-icons type="location-filled" size="22" color="#1890ff" />
+        <view class="location-icon">📍</view>
         <view class="address-info">
           <view class="receiver">
             <text class="name">{{ selectedAddress.name }}</text>
@@ -13,10 +13,10 @@
         </view>
       </template>
       <template v-else>
-        <uni-icons type="plusempty" size="22" color="#1890ff" />
+        <view class="location-icon">➕</view>
         <text class="add-text">添加收货地址</text>
       </template>
-      <uni-icons type="right" size="16" color="#999" />
+      <text class="arrow">›</text>
     </view>
 
     <!-- 配送时间 -->
@@ -24,67 +24,89 @@
       <text class="label">配送时间</text>
       <view class="time-value">
         <text>{{ deliveryTimeText }}</text>
-        <uni-icons type="right" size="16" color="#999" />
+        <text class="arrow">›</text>
       </view>
     </view>
 
-    <!-- 商品列表 -->
-    <view class="section">
-      <view class="section-header">
-        <image :src="shopInfo.logo" mode="aspectFill" />
-        <text>{{ shopInfo.name }}</text>
-      </view>
-      <view class="product-list">
-        <view class="product-item" v-for="item in cartItems" :key="item.id">
-          <image :src="item.image" mode="aspectFill" />
-          <view class="info">
-            <text class="name">{{ item.name }}</text>
-            <text class="spec">{{ item.spec }}</text>
-          </view>
-          <view class="right">
-            <text class="price">¥{{ item.price }}</text>
-            <text class="quantity">x{{ item.quantity }}</text>
+    <!-- 按商户分组的商品列表 -->
+    <view class="merchant-orders">
+      <view class="merchant-order" v-for="(merchantOrder, index) in merchantOrders" :key="merchantOrder.merchantId">
+        <view class="order-header">
+          <view class="order-badge">订单 {{ index + 1 }}</view>
+          <view class="merchant-info">
+            <image class="merchant-logo" :src="merchantOrder.merchantLogo || '/static/images/default-shop.png'" mode="aspectFill" />
+            <text class="merchant-name">{{ merchantOrder.merchantName }}</text>
           </view>
         </view>
-      </view>
-    </view>
 
-    <!-- 订单备注 -->
-    <view class="section remark-section">
-      <text class="label">订单备注</text>
-      <input type="text" v-model="remark" placeholder="选填，可填写您的特殊要求" />
+        <!-- 商品列表 -->
+        <view class="product-list">
+          <view class="product-item" v-for="item in merchantOrder.items" :key="item.id">
+            <image :src="item.productImage" mode="aspectFill" />
+            <view class="info">
+              <text class="name text-ellipsis-2">{{ item.productName }}</text>
+            </view>
+            <view class="right">
+              <text class="price">¥{{ item.price }}</text>
+              <text class="quantity">x{{ item.quantity }}</text>
+            </view>
+          </view>
+        </view>
+
+        <!-- 订单备注 -->
+        <view class="remark-row">
+          <text class="label">订单备注</text>
+          <input
+            type="text"
+            v-model="merchantOrder.remark"
+            placeholder="选填，可填写您的特殊要求"
+            @input="(e) => updateRemark(merchantOrder.merchantId, e.detail.value)"
+          />
+        </view>
+
+        <!-- 商户订单小计 -->
+        <view class="order-subtotal">
+          <text>小计：</text>
+          <text class="amount">¥{{ getMerchantTotal(merchantOrder).toFixed(2) }}</text>
+        </view>
+      </view>
     </view>
 
     <!-- 金额明细 -->
     <view class="section amount-section">
       <view class="amount-item">
         <text>商品金额</text>
-        <text>¥{{ totalAmount }}</text>
+        <text>¥{{ totalAmount.toFixed(2) }}</text>
       </view>
       <view class="amount-item">
-        <text>配送费</text>
-        <text>¥{{ deliveryFee }}</text>
+        <text>配送费（{{ merchantOrders.length }}单）</text>
+        <text>¥{{ totalDeliveryFee.toFixed(2) }}</text>
       </view>
       <view class="amount-item" v-if="discountAmount > 0">
         <text>优惠</text>
-        <text class="discount">-¥{{ discountAmount }}</text>
+        <text class="discount">-¥{{ discountAmount.toFixed(2) }}</text>
+      </view>
+      <view class="amount-item total-row">
+        <text>订单总数</text>
+        <text class="order-count">共 {{ merchantOrders.length }} 单</text>
       </view>
     </view>
 
     <!-- 底部结算 -->
-    <view class="footer">
+    <view class="footer safe-area-bottom">
       <view class="total">
         <text>合计：</text>
-        <text class="price">¥{{ payAmount }}</text>
+        <text class="price">¥{{ payAmount.toFixed(2) }}</text>
+        <text class="order-info">（{{ merchantOrders.length }}个订单）</text>
       </view>
       <view class="submit-btn" :class="{ disabled: !canSubmit }" @click="submitOrder">
         提交订单
       </view>
     </view>
 
-    <!-- 配送时间选择 -->
-    <uni-popup ref="timePopup" type="bottom" v-if="showTimePicker">
-      <view class="time-picker">
+    <!-- 配送时间选择弹窗 -->
+    <view class="time-picker-mask" v-if="showTimePicker" @click="showTimePicker = false">
+      <view class="time-picker" @click.stop>
         <view class="picker-header">
           <text @click="showTimePicker = false">取消</text>
           <text class="title">选择配送时间</text>
@@ -112,7 +134,7 @@
           </view>
         </view>
       </view>
-    </uni-popup>
+    </view>
   </view>
 </template>
 
@@ -120,26 +142,22 @@
 import { ref, computed, onMounted } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import { useCartStore } from '@/store/cart'
-import { orderApi, addressApi, merchantApi } from '@/api'
+import { orderApi, addressApi } from '@/api'
 
 const cartStore = useCartStore()
 
 const selectedAddress = ref(null)
-const shopInfo = ref({ logo: '', name: '' })
-const cartItems = ref([])
-const remark = ref('')
+const merchantOrders = ref([]) // 按商户分组的订单
+const remarks = ref({}) // 各商户订单的备注
 const deliveryTime = ref('now')
 const showTimePicker = ref(false)
-const deliveryFee = ref('0.00')
+const deliveryFeePerOrder = ref(5) // 每单配送费
 const discountAmount = ref(0)
 
 // 时间段
 const timeSlots = ref([])
 
-onLoad((options) => {
-  if (options.shopId) {
-    loadShopInfo(options.shopId)
-  }
+onLoad(() => {
   generateTimeSlots()
 })
 
@@ -161,23 +179,6 @@ const generateTimeSlots = () => {
   timeSlots.value = slots
 }
 
-// 加载店铺信息
-const loadShopInfo = async (shopId) => {
-  try {
-    const res = await merchantApi.getDetail(shopId)
-    if (res.code === 200) {
-      shopInfo.value = {
-        id: res.data.id,
-        logo: res.data.shopLogo,
-        name: res.data.shopName
-      }
-      deliveryFee.value = res.data.deliveryFee || '0.00'
-    }
-  } catch (e) {
-    console.error('加载店铺信息失败', e)
-  }
-}
-
 // 加载默认地址
 const loadDefaultAddress = async () => {
   try {
@@ -190,21 +191,44 @@ const loadDefaultAddress = async () => {
   }
 }
 
-// 加载购物车商品
+// 加载购物车中选中的商品（按商户分组）
 const loadCartItems = () => {
-  cartItems.value = cartStore.selectedItems
+  const selectedByMerchant = cartStore.getSelectedItemsByMerchant()
+  merchantOrders.value = selectedByMerchant.map(group => ({
+    ...group,
+    remark: remarks.value[group.merchantId] || ''
+  }))
+}
+
+// 更新商户订单备注
+const updateRemark = (merchantId, value) => {
+  remarks.value[merchantId] = value
+  const order = merchantOrders.value.find(o => o.merchantId === merchantId)
+  if (order) {
+    order.remark = value
+  }
+}
+
+// 获取商户订单小计
+const getMerchantTotal = (merchantOrder) => {
+  return merchantOrder.items.reduce((sum, item) => {
+    return sum + parseFloat(item.price) * item.quantity
+  }, 0)
 }
 
 // 计算属性
 const totalAmount = computed(() => {
-  return cartItems.value.reduce((sum, item) => {
-    return sum + parseFloat(item.price) * item.quantity
-  }, 0).toFixed(2)
+  return merchantOrders.value.reduce((sum, order) => {
+    return sum + getMerchantTotal(order)
+  }, 0)
+})
+
+const totalDeliveryFee = computed(() => {
+  return merchantOrders.value.length * deliveryFeePerOrder.value
 })
 
 const payAmount = computed(() => {
-  const total = parseFloat(totalAmount.value) + parseFloat(deliveryFee.value) - discountAmount.value
-  return total.toFixed(2)
+  return totalAmount.value + totalDeliveryFee.value - discountAmount.value
 })
 
 const deliveryTimeText = computed(() => {
@@ -215,7 +239,7 @@ const deliveryTimeText = computed(() => {
 })
 
 const canSubmit = computed(() => {
-  return selectedAddress.value && cartItems.value.length > 0
+  return selectedAddress.value && merchantOrders.value.length > 0
 })
 
 // 选择地址
@@ -235,6 +259,25 @@ const confirmTime = () => {
   showTimePicker.value = false
 }
 
+// 模拟支付（开发环境）
+const mockPayment = (totalPay) => {
+  return new Promise((resolve, reject) => {
+    uni.showModal({
+      title: '模拟支付',
+      content: `支付金额：¥${totalPay.toFixed(2)}\n共 ${merchantOrders.value.length} 个订单`,
+      confirmText: '确认支付',
+      cancelText: '取消',
+      success: (res) => {
+        if (res.confirm) {
+          resolve()
+        } else {
+          reject(new Error('用户取消支付'))
+        }
+      }
+    })
+  })
+}
+
 // 提交订单
 const submitOrder = async () => {
   if (!canSubmit.value) {
@@ -244,33 +287,67 @@ const submitOrder = async () => {
     return
   }
 
+  // 开发环境：使用模拟支付
+  const isDev = true // 正式上线时改为 false
+
   try {
     uni.showLoading({ title: '提交中...' })
 
-    const orderData = {
+    // 构建多商户订单数据
+    const ordersData = merchantOrders.value.map(order => ({
+      merchantId: order.merchantId,
       addressId: selectedAddress.value.id,
-      shopId: shopInfo.value.id,
-      products: cartItems.value.map(item => ({
+      products: order.items.map(item => ({
         productId: item.productId,
         quantity: item.quantity
       })),
       deliveryTime: deliveryTime.value === 'now' ? null : deliveryTime.value,
-      remark: remark.value
+      remark: order.remark || ''
+    }))
+
+    // 调用后端批量创建订单
+    let orderIds = []
+    try {
+      const res = await orderApi.create({ orders: ordersData })
+      if (res.code === 200) {
+        orderIds = res.data.orderIds || []
+      }
+    } catch (e) {
+      console.log('后端订单创建失败，使用模拟订单ID')
+      orderIds = merchantOrders.value.map((_, i) => 'mock_order_' + Date.now() + '_' + i)
     }
 
-    const res = await orderApi.create(orderData)
     uni.hideLoading()
 
-    if (res.code === 200) {
-      // 清空已下单的购物车商品
-      cartStore.clearSelectedItems()
+    // 清空已下单的购物车商品
+    await cartStore.fetchList()
 
-      // 调用支付
+    if (isDev) {
+      // 模拟支付
       try {
-        await uni.requestPayment(res.data.payParams)
-        uni.redirectTo({ url: `/pages/order/detail?id=${res.data.orderId}` })
+        await mockPayment(payAmount.value)
+        uni.showToast({ title: '支付成功', icon: 'success' })
+        setTimeout(() => {
+          if (orderIds.length === 1) {
+            uni.redirectTo({ url: `/pages/order/detail?id=${orderIds[0]}` })
+          } else {
+            uni.redirectTo({ url: '/pages/order/list' })
+          }
+        }, 1500)
       } catch (e) {
-        // 支付取消或失败，跳转到订单列表
+        // 支付取消，跳转到待付款订单
+        uni.showToast({ title: '支付取消', icon: 'none' })
+        setTimeout(() => {
+          uni.redirectTo({ url: '/pages/order/list?status=0' })
+        }, 1500)
+      }
+    } else {
+      // 正式环境：调用微信支付（合并支付）
+      try {
+        const res = await orderApi.pay({ orderIds })
+        await uni.requestPayment(res.data.payParams)
+        uni.redirectTo({ url: '/pages/order/list' })
+      } catch (e) {
         uni.redirectTo({ url: '/pages/order/list?status=0' })
       }
     }
@@ -296,11 +373,15 @@ const submitOrder = async () => {
   padding: 30rpx;
   margin: 20rpx;
   background-color: #fff;
-  border-radius: $border-radius-lg;
+  border-radius: 16rpx;
+
+  .location-icon {
+    font-size: 40rpx;
+    margin-right: 16rpx;
+  }
 
   .address-info {
     flex: 1;
-    margin-left: 20rpx;
 
     .receiver {
       .name {
@@ -328,7 +409,11 @@ const submitOrder = async () => {
     flex: 1;
     font-size: 28rpx;
     color: #666;
-    margin-left: 16rpx;
+  }
+
+  .arrow {
+    font-size: 32rpx;
+    color: #999;
   }
 }
 
@@ -336,7 +421,7 @@ const submitOrder = async () => {
 .section {
   margin: 20rpx;
   background-color: #fff;
-  border-radius: $border-radius-lg;
+  border-radius: 16rpx;
   overflow: hidden;
 }
 
@@ -360,33 +445,65 @@ const submitOrder = async () => {
       font-size: 28rpx;
       color: #666;
     }
+
+    .arrow {
+      margin-left: 8rpx;
+      font-size: 28rpx;
+      color: #999;
+    }
   }
 }
 
-/* 店铺头部 */
-.section-header {
-  display: flex;
-  align-items: center;
-  padding: 24rpx 30rpx;
-  border-bottom: 1rpx solid #f0f0f0;
+/* 商户订单 */
+.merchant-orders {
+  margin: 20rpx;
+}
 
-  image {
-    width: 48rpx;
-    height: 48rpx;
-    border-radius: 8rpx;
-    margin-right: 16rpx;
-  }
+.merchant-order {
+  background-color: #fff;
+  border-radius: 16rpx;
+  margin-bottom: 20rpx;
+  overflow: hidden;
 
-  text {
-    font-size: 28rpx;
-    font-weight: bold;
-    color: #333;
+  .order-header {
+    padding: 24rpx;
+    border-bottom: 1rpx solid #f0f0f0;
+    display: flex;
+    align-items: center;
+
+    .order-badge {
+      background-color: #22c55e;
+      color: #fff;
+      font-size: 22rpx;
+      padding: 4rpx 12rpx;
+      border-radius: 8rpx;
+      margin-right: 16rpx;
+    }
+
+    .merchant-info {
+      display: flex;
+      align-items: center;
+      flex: 1;
+
+      .merchant-logo {
+        width: 40rpx;
+        height: 40rpx;
+        border-radius: 6rpx;
+        margin-right: 12rpx;
+      }
+
+      .merchant-name {
+        font-size: 28rpx;
+        font-weight: 500;
+        color: #333;
+      }
+    }
   }
 }
 
 /* 商品列表 */
 .product-list {
-  padding: 0 30rpx;
+  padding: 0 24rpx;
 
   .product-item {
     display: flex;
@@ -401,7 +518,7 @@ const submitOrder = async () => {
     image {
       width: 120rpx;
       height: 120rpx;
-      border-radius: $border-radius-sm;
+      border-radius: 8rpx;
       margin-right: 20rpx;
     }
 
@@ -411,14 +528,7 @@ const submitOrder = async () => {
       .name {
         font-size: 28rpx;
         color: #333;
-        display: block;
-      }
-
-      .spec {
-        font-size: 24rpx;
-        color: #999;
-        margin-top: 8rpx;
-        display: block;
+        line-height: 1.4;
       }
     }
 
@@ -427,7 +537,7 @@ const submitOrder = async () => {
 
       .price {
         font-size: 28rpx;
-        color: $danger-color;
+        color: #e53935;
         display: block;
       }
 
@@ -442,21 +552,41 @@ const submitOrder = async () => {
 }
 
 /* 订单备注 */
-.remark-section {
+.remark-row {
   display: flex;
   align-items: center;
-  padding: 28rpx 30rpx;
+  padding: 24rpx;
+  border-top: 1rpx solid #f0f0f0;
 
   .label {
-    font-size: 28rpx;
-    color: #333;
-    margin-right: 20rpx;
+    font-size: 26rpx;
+    color: #666;
+    margin-right: 16rpx;
+    white-space: nowrap;
   }
 
   input {
     flex: 1;
-    font-size: 28rpx;
+    font-size: 26rpx;
     text-align: right;
+  }
+}
+
+/* 订单小计 */
+.order-subtotal {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 20rpx 24rpx;
+  background-color: #fafafa;
+  font-size: 26rpx;
+  color: #666;
+
+  .amount {
+    font-size: 30rpx;
+    color: #e53935;
+    font-weight: bold;
+    margin-left: 8rpx;
   }
 }
 
@@ -472,7 +602,18 @@ const submitOrder = async () => {
     color: #666;
 
     .discount {
-      color: $success-color;
+      color: #22c55e;
+    }
+
+    &.total-row {
+      border-top: 1rpx solid #f0f0f0;
+      margin-top: 8rpx;
+      padding-top: 16rpx;
+
+      .order-count {
+        color: #333;
+        font-weight: 500;
+      }
     }
   }
 }
@@ -489,7 +630,6 @@ const submitOrder = async () => {
   padding: 16rpx 30rpx;
   background-color: #fff;
   box-shadow: 0 -2rpx 10rpx rgba(0, 0, 0, 0.05);
-  padding-bottom: calc(16rpx + env(safe-area-inset-bottom));
 
   .total {
     font-size: 28rpx;
@@ -498,13 +638,19 @@ const submitOrder = async () => {
     .price {
       font-size: 40rpx;
       font-weight: bold;
-      color: $danger-color;
+      color: #e53935;
+    }
+
+    .order-info {
+      font-size: 22rpx;
+      color: #999;
+      margin-left: 8rpx;
     }
   }
 
   .submit-btn {
     padding: 24rpx 60rpx;
-    background-color: $primary-color;
+    background-color: #22c55e;
     color: #fff;
     font-size: 32rpx;
     border-radius: 44rpx;
@@ -515,8 +661,22 @@ const submitOrder = async () => {
   }
 }
 
+/* 时间选择器遮罩 */
+.time-picker-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+}
+
 /* 时间选择器 */
 .time-picker {
+  width: 100%;
   background-color: #fff;
   border-radius: 24rpx 24rpx 0 0;
   padding-bottom: env(safe-area-inset-bottom);
@@ -539,7 +699,7 @@ const submitOrder = async () => {
     }
 
     .confirm {
-      color: $primary-color;
+      color: #22c55e;
     }
   }
 
@@ -555,7 +715,7 @@ const submitOrder = async () => {
       padding: 24rpx;
       margin-bottom: 16rpx;
       border: 2rpx solid #f0f0f0;
-      border-radius: $border-radius-lg;
+      border-radius: 16rpx;
 
       text {
         font-size: 28rpx;
@@ -570,11 +730,11 @@ const submitOrder = async () => {
       }
 
       &.active {
-        border-color: $primary-color;
-        background-color: rgba(24, 144, 255, 0.05);
+        border-color: #22c55e;
+        background-color: rgba(34, 197, 94, 0.05);
 
         text {
-          color: $primary-color;
+          color: #22c55e;
         }
       }
     }

@@ -21,6 +21,7 @@ public class OrderItem implements Serializable {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long orderId;
+    private String orderNo;
     private Long productId;
     private String productName;
     private String productImage;

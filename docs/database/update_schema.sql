@@ -146,5 +146,39 @@ INSERT INTO t_group_activity (name, product_id, merchant_id, original_price, gro
 ('泰国榴莲拼团', 4, 1, 128.00, 69.00, 5, 30, 1, NOW() - INTERVAL '1 day', NOW() + INTERVAL '3 days', '新鲜到货，拼团更优惠'),
 ('土鸡蛋拼团', 5, 1, 35.00, 19.90, 2, 200, 1, NOW() - INTERVAL '1 day', NOW() + INTERVAL '5 days', '农家散养，限时特价');
 
+-- ====================================
+-- 商户信息变更审核表
+-- ====================================
+DROP TABLE IF EXISTS t_merchant_info_audit CASCADE;
+
+CREATE TABLE t_merchant_info_audit (
+    id BIGSERIAL PRIMARY KEY,
+    merchant_id BIGINT NOT NULL COMMENT '商户ID',
+    change_type VARCHAR(32) DEFAULT 'shop_info' COMMENT '变更类型',
+    old_shop_name VARCHAR(64) COMMENT '变更前店铺名称',
+    new_shop_name VARCHAR(64) COMMENT '变更后店铺名称',
+    old_logo VARCHAR(512) COMMENT '变更前Logo',
+    new_logo VARCHAR(512) COMMENT '变更后Logo',
+    old_phone VARCHAR(20) COMMENT '变更前联系电话',
+    new_phone VARCHAR(20) COMMENT '变更后联系电话',
+    old_address VARCHAR(256) COMMENT '变更前地址',
+    new_address VARCHAR(256) COMMENT '变更后地址',
+    old_longitude DECIMAL(10,6) COMMENT '变更前经度',
+    new_longitude DECIMAL(10,6) COMMENT '变更后经度',
+    old_latitude DECIMAL(10,6) COMMENT '变更前纬度',
+    new_latitude DECIMAL(10,6) COMMENT '变更后纬度',
+    status SMALLINT DEFAULT 0 COMMENT '审核状态 0-待审核 1-审核通过 2-审核拒绝',
+    audit_remark VARCHAR(256) COMMENT '审核备注/拒绝原因',
+    audit_time TIMESTAMP COMMENT '审核时间',
+    audit_by BIGINT COMMENT '审核人ID',
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted SMALLINT DEFAULT 0
+);
+
+COMMENT ON TABLE t_merchant_info_audit IS '商户信息变更审核表';
+CREATE INDEX idx_merchant_info_audit_merchant ON t_merchant_info_audit(merchant_id);
+CREATE INDEX idx_merchant_info_audit_status ON t_merchant_info_audit(status);
+
 -- 完成
 SELECT '数据库更新完成！' AS message;

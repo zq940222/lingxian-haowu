@@ -23,6 +23,8 @@ export const homeApi = {
   getBanners: () => get('/user/banners'),
   // 获取推荐商品
   getRecommendProducts: (params) => get('/user/products/recommend', params),
+  // 获取限时抢购商品
+  getFlashSaleProducts: (params) => get('/user/flash-sale/products', params),
   // 搜索
   search: (params) => get('/user/search', params)
 }
@@ -40,7 +42,9 @@ export const productApi = {
   // 获取商品详情
   getDetail: (id) => get(`/user/products/${id}`),
   // 获取商品列表
-  getList: (params) => get('/user/products', params)
+  getList: (params) => get('/user/products', params),
+  // 获取商品评价列表
+  getComments: (id, params) => get(`/user/products/${id}/comments`, params)
 }
 
 // ============ 购物车 ============
@@ -58,7 +62,9 @@ export const cartApi = {
   // 选中/取消
   select: (id, selected) => put(`/user/cart/${id}/select`, { selected }),
   // 全选/取消全选
-  selectAll: (selected) => put('/user/cart/select-all', { selected })
+  selectAll: (selected) => put('/user/cart/select-all', { selected }),
+  // 选中/取消选中某商户的所有商品
+  selectMerchant: (merchantId, selected) => put(`/user/cart/merchant/${merchantId}/select`, { selected })
 }
 
 // ============ 订单 ============

@@ -164,11 +164,19 @@ public class MinioStorageService implements StorageService {
             return null;
         }
 
+        // 检测无效的 blob URL（历史错误数据）
+        // 例如: http://localhost:9000/lingxian/blob%3Ahttp%3A/localhost...
+        if (path.contains("blob%3A") || path.contains("blob:")) {
+            log.warn("检测到无效的blob URL，无法生成有效访问链接: {}", path);
+            return null;
+        }
+
         // 如果已经是完整URL（http开头），判断是否需要重新生成签名
         if (path.startsWith("http://") || path.startsWith("https://")) {
-            // 如果是外部URL（如picsum.photos），直接返回
+            // 如果是外部URL（如picsum.photos、placeholder.com），直接返回
             StorageProperties.MinioConfig config = properties.getMinio();
-            if (!path.contains(config.getEndpoint().replace("http://", "").replace("https://", ""))) {
+            String endpointHost = config.getEndpoint().replace("http://", "").replace("https://", "");
+            if (!path.contains(endpointHost)) {
                 return path;
             }
             // 如果是MinIO URL，提取objectKey重新生成签名
@@ -181,6 +189,11 @@ public class MinioStorageService implements StorageService {
                     int queryIndex = objectKey.indexOf("?");
                     if (queryIndex > 0) {
                         objectKey = objectKey.substring(0, queryIndex);
+                    }
+                    // 检查 objectKey 是否有效（不应包含特殊编码）
+                    if (objectKey.contains("%3A") || objectKey.contains(":")) {
+                        log.warn("检测到无效的objectKey: {}", objectKey);
+                        return null;
                     }
                     return generatePresignedUrl(objectKey);
                 }

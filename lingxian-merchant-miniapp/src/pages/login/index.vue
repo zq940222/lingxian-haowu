@@ -45,17 +45,17 @@
       </view>
 
       <!-- 协议 -->
-      <view class="agreement" @tap="toggleAgreed">
-        <view class="checkbox">
+      <view class="agreement">
+        <view class="checkbox" @tap="toggleAgreed">
           <uni-icons
             :type="agreed ? 'checkbox-filled' : 'circle'"
-            :color="agreed ? '#1890ff' : '#ccc'"
-            size="18"
+            :color="agreed ? '#22c55e' : '#ccc'"
+            size="20"
           />
         </view>
-        <text>登录即表示同意</text>
+        <text @tap="toggleAgreed">我已阅读并同意</text>
         <text class="link" @tap.stop="showUserAgreement">《用户协议》</text>
-        <text>和</text>
+        <text @tap="toggleAgreed">和</text>
         <text class="link" @tap.stop="showPrivacyPolicy">《隐私政策》</text>
       </view>
     </view>
@@ -282,18 +282,21 @@ const handleWxLogin = async () => {
   justify-content: center;
   flex-wrap: wrap;
   margin-top: 40rpx;
-  font-size: 24rpx;
-  color: #999;
+  font-size: 26rpx;
+  color: #666;
   padding: 20rpx;
+  background-color: #f9f9f9;
+  border-radius: 12rpx;
 
   .checkbox {
-    margin-right: 8rpx;
+    margin-right: 10rpx;
     padding: 10rpx;
   }
 
   .link {
-    color: $primary-color;
+    color: #22c55e;
     padding: 10rpx 0;
+    font-weight: 500;
   }
 }
 </style>

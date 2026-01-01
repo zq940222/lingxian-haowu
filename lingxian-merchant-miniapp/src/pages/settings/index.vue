@@ -12,20 +12,41 @@
       <uni-icons type="right" size="18" color="#999" />
     </view>
 
-    <!-- 设置菜单 -->
+    <!-- 资金管理 -->
     <view class="menu-section">
+      <view class="section-title">资金管理</view>
+      <view class="menu-item" @click="goWallet">
+        <view class="icon-wrap wallet">
+          <uni-icons type="wallet" size="22" color="#fff" />
+        </view>
+        <text class="label">我的钱包</text>
+        <text class="balance">¥{{ balance }}</text>
+        <uni-icons type="right" size="16" color="#999" />
+      </view>
+      <view class="menu-item" @click="goWithdraw">
+        <view class="icon-wrap withdraw">
+          <uni-icons type="redo" size="22" color="#fff" />
+        </view>
+        <text class="label">提现</text>
+        <uni-icons type="right" size="16" color="#999" />
+      </view>
+      <view class="menu-item" @click="goWithdrawAccount">
+        <view class="icon-wrap bank">
+          <uni-icons type="creditcard" size="22" color="#fff" />
+        </view>
+        <text class="label">提现账户</text>
+        <uni-icons type="right" size="16" color="#999" />
+      </view>
+    </view>
+
+    <!-- 店铺设置 -->
+    <view class="menu-section">
+      <view class="section-title">店铺设置</view>
       <view class="menu-item" @click="goShopSettings">
         <view class="icon-wrap shop">
           <uni-icons type="shop" size="22" color="#fff" />
         </view>
         <text class="label">店铺设置</text>
-        <uni-icons type="right" size="16" color="#999" />
-      </view>
-      <view class="menu-item" @click="goCategories">
-        <view class="icon-wrap category">
-          <uni-icons type="list" size="22" color="#fff" />
-        </view>
-        <text class="label">分类管理</text>
         <uni-icons type="right" size="16" color="#999" />
       </view>
       <view class="menu-item" @click="goDeliverySettings">
@@ -37,36 +58,14 @@
       </view>
     </view>
 
+    <!-- 账号与其他 -->
     <view class="menu-section">
+      <view class="section-title">其他</view>
       <view class="menu-item" @click="goAccount">
         <view class="icon-wrap account">
           <uni-icons type="person" size="22" color="#fff" />
         </view>
         <text class="label">账号安全</text>
-        <uni-icons type="right" size="16" color="#999" />
-      </view>
-      <view class="menu-item" @click="goPrinter">
-        <view class="icon-wrap printer">
-          <uni-icons type="paperplane" size="22" color="#fff" />
-        </view>
-        <text class="label">打印设置</text>
-        <uni-icons type="right" size="16" color="#999" />
-      </view>
-      <view class="menu-item" @click="goNotification">
-        <view class="icon-wrap notification">
-          <uni-icons type="notification" size="22" color="#fff" />
-        </view>
-        <text class="label">消息通知</text>
-        <uni-icons type="right" size="16" color="#999" />
-      </view>
-    </view>
-
-    <view class="menu-section">
-      <view class="menu-item" @click="goHelp">
-        <view class="icon-wrap help">
-          <uni-icons type="help" size="22" color="#fff" />
-        </view>
-        <text class="label">帮助中心</text>
         <uni-icons type="right" size="16" color="#999" />
       </view>
       <view class="menu-item" @click="goAbout">
@@ -87,18 +86,68 @@
 </template>
 
 <script setup>
-import { useMerchantStore } from '@/store/merchant'
+import { ref } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
+import { useMerchantStore, VerifyStatus } from '@/store/merchant'
+import { walletApi } from '@/api'
 
 const merchantStore = useMerchantStore()
+const balance = ref('0.00')
+
+onShow(async () => {
+  // 检查登录状态
+  if (!merchantStore.checkLoginStatus()) {
+    return
+  }
+
+  // 从服务器获取最新的审核状态
+  try {
+    const statusData = await merchantStore.fetchApplyStatus()
+    if (statusData.verifyStatus !== VerifyStatus.APPROVED) {
+      uni.reLaunch({ url: '/pages/apply/status' })
+      return
+    }
+  } catch (e) {
+    if (merchantStore.verifyStatus !== VerifyStatus.APPROVED) {
+      uni.reLaunch({ url: '/pages/apply/status' })
+      return
+    }
+  }
+
+  // 获取钱包余额
+  loadBalance()
+})
+
+// 加载余额
+const loadBalance = async () => {
+  try {
+    const res = await walletApi.getBalance()
+    if (res.code === 200) {
+      balance.value = res.data.balance || '0.00'
+    }
+  } catch (e) {
+    console.error('获取余额失败', e)
+  }
+}
+
+// 我的钱包
+const goWallet = () => {
+  uni.navigateTo({ url: '/pages/wallet/index' })
+}
+
+// 提现
+const goWithdraw = () => {
+  uni.navigateTo({ url: '/pages/wallet/withdraw' })
+}
+
+// 提现账户
+const goWithdrawAccount = () => {
+  uni.navigateTo({ url: '/pages/wallet/account' })
+}
 
 // 店铺设置
 const goShopSettings = () => {
   uni.navigateTo({ url: '/pages/settings/shop' })
-}
-
-// 分类管理
-const goCategories = () => {
-  uni.navigateTo({ url: '/pages/settings/categories' })
 }
 
 // 配送设置
@@ -109,21 +158,6 @@ const goDeliverySettings = () => {
 // 账号安全
 const goAccount = () => {
   uni.navigateTo({ url: '/pages/settings/account' })
-}
-
-// 打印设置
-const goPrinter = () => {
-  uni.navigateTo({ url: '/pages/settings/printer' })
-}
-
-// 消息通知
-const goNotification = () => {
-  uni.navigateTo({ url: '/pages/settings/notification' })
-}
-
-// 帮助中心
-const goHelp = () => {
-  uni.navigateTo({ url: '/pages/settings/help' })
 }
 
 // 关于我们
@@ -201,6 +235,12 @@ const handleLogout = async () => {
   border-radius: $border-radius-lg;
   margin-bottom: 20rpx;
   overflow: hidden;
+
+  .section-title {
+    padding: 24rpx 30rpx 12rpx;
+    font-size: 26rpx;
+    color: #999;
+  }
 }
 
 .menu-item {
@@ -222,13 +262,12 @@ const handleLogout = async () => {
     justify-content: center;
     margin-right: 24rpx;
 
+    &.wallet { background-color: #ff9800; }
+    &.withdraw { background-color: #4caf50; }
+    &.bank { background-color: #2196f3; }
     &.shop { background-color: #1890ff; }
-    &.category { background-color: #52c41a; }
     &.delivery { background-color: #fa8c16; }
     &.account { background-color: #722ed1; }
-    &.printer { background-color: #eb2f96; }
-    &.notification { background-color: #13c2c2; }
-    &.help { background-color: #faad14; }
     &.about { background-color: #8c8c8c; }
   }
 
@@ -236,6 +275,13 @@ const handleLogout = async () => {
     flex: 1;
     font-size: 28rpx;
     color: #333;
+  }
+
+  .balance {
+    font-size: 28rpx;
+    color: #ff9800;
+    font-weight: bold;
+    margin-right: 16rpx;
   }
 
   .version {

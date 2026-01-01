@@ -30,10 +30,10 @@
         </view>
         <view class="form-item">
           <text class="label required">商品分类</text>
-          <picker :value="categoryIndex" :range="categoryNames" @change="onCategoryChange">
+          <picker mode="multiSelector" :value="categoryIndexes" :range="categoryColumns" @change="onCategoryChange" @columnchange="onColumnChange">
             <view class="picker">
-              <text :class="{ placeholder: categoryIndex === -1 }">
-                {{ categoryIndex === -1 ? '请选择分类' : categoryNames[categoryIndex] }}
+              <text :class="{ placeholder: !selectedCategoryText }">
+                {{ selectedCategoryText || '请选择分类' }}
               </text>
               <uni-icons type="right" size="16" color="#999" />
             </view>
@@ -100,16 +100,36 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { productApi, categoryApi } from '@/api'
+import { productApi, categoryApi, uploadApi } from '@/api'
 
 const productId = ref('')
 const isEdit = computed(() => !!productId.value)
 
-const categories = ref([])
-const categoryIndex = ref(-1)
-const categoryNames = computed(() => categories.value.map(c => c.name))
+// 分类数据（树形结构）
+const categoryTree = ref([])
+// 二级联动选择器的索引 [一级索引, 二级索引]
+const categoryIndexes = ref([0, 0])
+// 二级联动选择器的列数据
+const categoryColumns = computed(() => {
+  const firstColumn = categoryTree.value.map(c => c.name)
+  const parentIdx = categoryIndexes.value[0]
+  const parent = categoryTree.value[parentIdx]
+  const secondColumn = parent && parent.children ? parent.children.map(c => c.name) : []
+  return [firstColumn, secondColumn]
+})
+// 选中的分类文本
+const selectedCategoryText = computed(() => {
+  const parentIdx = categoryIndexes.value[0]
+  const childIdx = categoryIndexes.value[1]
+  const parent = categoryTree.value[parentIdx]
+  if (!parent) return ''
+  const child = parent.children?.[childIdx]
+  if (!child) return parent.name
+  return `${parent.name} / ${child.name}`
+})
 
-const images = ref([])
+const images = ref([])  // 预览URL列表
+const imagePaths = ref([])  // 存储路径列表（用于提交到后端）
 const form = ref({
   name: '',
   categoryId: '',
@@ -133,12 +153,12 @@ onLoad((options) => {
   }
 })
 
-// 加载分类
+// 加载分类（树形结构）
 const loadCategories = async () => {
   try {
-    const res = await categoryApi.getList()
+    const res = await categoryApi.getTree()
     if (res.code === 200) {
-      categories.value = res.data || []
+      categoryTree.value = res.data || []
     }
   } catch (e) {
     console.error('加载分类失败', e)
@@ -163,13 +183,15 @@ const loadProduct = async () => {
         status: data.status,
         sort: data.sort ? String(data.sort) : ''
       }
-      images.value = data.images || (data.image ? [data.image] : [])
+      // 编辑时，后端返回的已是预览URL，需要同时设置预览和路径
+      // 注意：编辑已有商品时，images返回的是预览URL，需要从mainImage获取存储路径
+      images.value = data.images || (data.mainImage ? [data.mainImage] : [])
+      // 编辑时假设后端已处理好，存储路径需要后端返回原始路径
+      // 如果后端没有返回原始路径，编辑保存时会使用预览URL（后端需要能处理）
+      imagePaths.value = [...images.value]
 
-      // 设置分类索引
-      const idx = categories.value.findIndex(c => c.id === data.categoryId)
-      if (idx !== -1) {
-        categoryIndex.value = idx
-      }
+      // 设置二级分类索引
+      setCategoryIndexById(data.categoryId)
     }
   } catch (e) {
     console.error('加载商品失败', e)
@@ -200,23 +222,14 @@ const chooseImage = async () => {
 const uploadImage = async (filePath) => {
   try {
     uni.showLoading({ title: '上传中...' })
-    const uploadRes = await uni.uploadFile({
-      url: '/api/upload',
-      filePath: filePath,
-      name: 'file',
-      header: {
-        'Authorization': `Bearer ${uni.getStorageSync('merchant_token')}`
-      }
-    })
-
-    const data = JSON.parse(uploadRes.data)
-    if (data.code === 200) {
-      images.value.push(data.data.url)
-    } else {
-      uni.showToast({ title: '上传失败', icon: 'none' })
-    }
+    const uploadRes = await uploadApi.uploadImage(filePath)
+    // uploadRes 包含 { url: '存储路径', previewUrl: '预览URL' }
+    // 显示使用 previewUrl，保存使用 url（存储路径）
+    images.value.push(uploadRes.previewUrl)
+    imagePaths.value.push(uploadRes.url)
   } catch (e) {
-    uni.showToast({ title: '上传失败', icon: 'none' })
+    console.error('上传失败', e)
+    uni.showToast({ title: e.message || '上传失败', icon: 'none' })
   } finally {
     uni.hideLoading()
   }
@@ -225,12 +238,52 @@ const uploadImage = async (filePath) => {
 // 删除图片
 const removeImage = (index) => {
   images.value.splice(index, 1)
+  imagePaths.value.splice(index, 1)
 }
 
-// 分类变更
+// 根据分类ID设置索引（用于编辑时回显）
+const setCategoryIndexById = (categoryId) => {
+  for (let i = 0; i < categoryTree.value.length; i++) {
+    const parent = categoryTree.value[i]
+    // 检查是否是一级分类（虽然商品应该选到二级，但做兼容）
+    if (parent.id === categoryId) {
+      categoryIndexes.value = [i, 0]
+      return
+    }
+    // 检查子分类
+    if (parent.children) {
+      for (let j = 0; j < parent.children.length; j++) {
+        if (parent.children[j].id === categoryId) {
+          categoryIndexes.value = [i, j]
+          return
+        }
+      }
+    }
+  }
+}
+
+// 列变化（切换一级分类时，重置二级分类索引）
+const onColumnChange = (e) => {
+  const { column, value } = e.detail
+  if (column === 0) {
+    // 一级分类变化，重置二级索引为0
+    categoryIndexes.value = [value, 0]
+  }
+}
+
+// 分类选择确认
 const onCategoryChange = (e) => {
-  categoryIndex.value = e.detail.value
-  form.value.categoryId = categories.value[e.detail.value].id
+  const [parentIdx, childIdx] = e.detail.value
+  categoryIndexes.value = [parentIdx, childIdx]
+
+  // 获取选中的二级分类ID
+  const parent = categoryTree.value[parentIdx]
+  if (parent && parent.children && parent.children[childIdx]) {
+    form.value.categoryId = parent.children[childIdx].id
+  } else if (parent) {
+    // 如果没有子分类，使用一级分类ID（兜底）
+    form.value.categoryId = parent.id
+  }
 }
 
 // 状态变更
@@ -252,6 +305,16 @@ const validate = () => {
     uni.showToast({ title: '请选择商品分类', icon: 'none' })
     return false
   }
+  // 验证是否选择了二级分类
+  const parentIdx = categoryIndexes.value[0]
+  const parent = categoryTree.value[parentIdx]
+  if (parent && parent.children && parent.children.length > 0) {
+    const childIdx = categoryIndexes.value[1]
+    if (childIdx < 0 || !parent.children[childIdx]) {
+      uni.showToast({ title: '请选择二级分类', icon: 'none' })
+      return false
+    }
+  }
   if (!form.value.price || parseFloat(form.value.price) <= 0) {
     uni.showToast({ title: '请输入有效价格', icon: 'none' })
     return false
@@ -272,8 +335,9 @@ const submit = async () => {
 
     const data = {
       ...form.value,
-      image: images.value[0],
-      images: images.value,
+      // 使用存储路径提交，而非预览URL
+      mainImage: imagePaths.value[0],
+      images: imagePaths.value,
       price: parseFloat(form.value.price),
       originalPrice: form.value.originalPrice ? parseFloat(form.value.originalPrice) : null,
       stock: parseInt(form.value.stock),
