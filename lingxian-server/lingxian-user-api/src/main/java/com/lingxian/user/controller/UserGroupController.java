@@ -32,6 +32,7 @@ public class UserGroupController {
     private final GroupRecordService groupRecordService;
     private final GroupMemberService groupMemberService;
     private final ProductService productService;
+    private final MerchantService merchantService;
     private final UserService userService;
     private final ImageUrlUtil imageUrlUtil;
 
@@ -42,9 +43,12 @@ public class UserGroupController {
             @RequestParam(defaultValue = "10") Integer pageSize) {
         log.info("获取拼团活动列表: page={}, pageSize={}", page, pageSize);
 
+        // 获取营业中的商户ID列表
+        List<Long> openMerchantIds = getOpenMerchantIds();
+
         LocalDateTime now = LocalDateTime.now();
-        Page<GroupActivity> pageResult = groupActivityService.page(
-                new Page<>(page, pageSize),
+        // 先获取更多数据，后面过滤
+        List<GroupActivity> allActivities = groupActivityService.list(
                 new LambdaQueryWrapper<GroupActivity>()
                         .eq(GroupActivity::getStatus, 1) // 进行中
                         .le(GroupActivity::getStartTime, now)
@@ -52,14 +56,36 @@ public class UserGroupController {
                         .orderByDesc(GroupActivity::getCreateTime)
         );
 
-        // 填充商品信息
-        for (GroupActivity activity : pageResult.getRecords()) {
-            fillActivityProductInfo(activity);
-        }
+        // 批量获取商品并过滤休息中商户的活动
+        List<Long> productIds = allActivities.stream()
+                .map(GroupActivity::getProductId)
+                .collect(Collectors.toList());
+        Map<Long, Product> productMap = productIds.isEmpty() ? new HashMap<>() :
+                productService.listByIds(productIds).stream()
+                        .collect(Collectors.toMap(Product::getId, p -> p));
+
+        List<GroupActivity> filteredActivities = allActivities.stream()
+                .filter(activity -> {
+                    Product product = productMap.get(activity.getProductId());
+                    return product != null && openMerchantIds.contains(product.getMerchantId());
+                })
+                .peek(activity -> {
+                    Product product = productMap.get(activity.getProductId());
+                    activity.setProductName(product.getName());
+                    activity.setProductImage(imageUrlUtil.generateUrl(product.getImage()));
+                })
+                .collect(Collectors.toList());
+
+        // 手动分页
+        int total = filteredActivities.size();
+        int start = (page - 1) * pageSize;
+        int end = Math.min(start + pageSize, total);
+        List<GroupActivity> pagedActivities = start < total ?
+                filteredActivities.subList(start, end) : new java.util.ArrayList<>();
 
         Map<String, Object> result = new HashMap<>();
-        result.put("records", pageResult.getRecords());
-        result.put("total", pageResult.getTotal());
+        result.put("records", pagedActivities);
+        result.put("total", total);
         result.put("page", page);
         result.put("pageSize", pageSize);
 
@@ -78,6 +104,14 @@ public class UserGroupController {
 
         // 获取商品信息
         Product product = productService.getById(activity.getProductId());
+
+        // 检查商户是否营业中
+        if (product != null && product.getMerchantId() != null) {
+            Merchant merchant = merchantService.getById(product.getMerchantId());
+            if (merchant == null || merchant.getStatus() != 1) {
+                return Result.failed("商户已休息，暂时无法查看该拼团活动");
+            }
+        }
 
         Map<String, Object> result = new HashMap<>();
         result.put("id", activity.getId());
@@ -447,5 +481,17 @@ public class UserGroupController {
         if (record.getStatus() != null && record.getStatus() >= 0 && record.getStatus() < statusNames.length) {
             record.setStatusName(statusNames[record.getStatus()]);
         }
+    }
+
+    /**
+     * 获取营业中的商户ID列表
+     */
+    private List<Long> getOpenMerchantIds() {
+        List<Merchant> openMerchants = merchantService.list(new LambdaQueryWrapper<Merchant>()
+                .eq(Merchant::getStatus, 1)
+                .select(Merchant::getId));
+        return openMerchants.stream()
+                .map(Merchant::getId)
+                .collect(Collectors.toList());
     }
 }

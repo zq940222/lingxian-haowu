@@ -53,14 +53,30 @@ public class UserProductController {
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer pageSize) {
 
-        Page<Product> pageResult = productService.page(
-                new Page<>(page, pageSize),
-                new LambdaQueryWrapper<Product>()
-                        .eq(Product::getStatus, 1)
-                        .eq(Product::getIsRecommend, 1)
-                        .orderByDesc(Product::getSalesCount)
-                        .orderByDesc(Product::getCreateTime)
-        );
+        // 获取营业中的商户ID列表
+        List<Long> openMerchantIds = getOpenMerchantIds();
+
+        LambdaQueryWrapper<Product> queryWrapper = new LambdaQueryWrapper<Product>()
+                .eq(Product::getStatus, 1)
+                .eq(Product::getIsRecommend, 1);
+
+        // 只展示营业中商户的商品
+        if (!openMerchantIds.isEmpty()) {
+            queryWrapper.in(Product::getMerchantId, openMerchantIds);
+        } else {
+            // 没有营业中的商户，返回空结果
+            Map<String, Object> result = new HashMap<>();
+            result.put("records", new ArrayList<>());
+            result.put("total", 0);
+            result.put("page", page);
+            result.put("pageSize", pageSize);
+            return Result.success(result);
+        }
+
+        queryWrapper.orderByDesc(Product::getSalesCount)
+                .orderByDesc(Product::getCreateTime);
+
+        Page<Product> pageResult = productService.page(new Page<>(page, pageSize), queryWrapper);
 
         // 处理商品图片URL
         pageResult.getRecords().forEach(this::processProductImageUrls);
@@ -78,14 +94,43 @@ public class UserProductController {
     @Operation(summary = "获取商品列表")
     public Result<Map<String, Object>> getProductList(
             @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Long merchantId,
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "default") String sortType,
             @RequestParam(defaultValue = "asc") String priceOrder,
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer pageSize) {
 
+        // 获取营业中的商户ID列表
+        List<Long> openMerchantIds = getOpenMerchantIds();
+
+        // 如果没有营业中的商户，返回空结果
+        if (openMerchantIds.isEmpty()) {
+            Map<String, Object> result = new HashMap<>();
+            result.put("records", new ArrayList<>());
+            result.put("total", 0);
+            result.put("page", page);
+            result.put("pageSize", pageSize);
+            return Result.success(result);
+        }
+
         LambdaQueryWrapper<Product> queryWrapper = new LambdaQueryWrapper<Product>()
-                .eq(Product::getStatus, 1);
+                .eq(Product::getStatus, 1)
+                .in(Product::getMerchantId, openMerchantIds);
+
+        // 指定商户筛选
+        if (merchantId != null) {
+            // 检查指定商户是否营业中
+            if (!openMerchantIds.contains(merchantId)) {
+                Map<String, Object> result = new HashMap<>();
+                result.put("records", new ArrayList<>());
+                result.put("total", 0);
+                result.put("page", page);
+                result.put("pageSize", pageSize);
+                return Result.success(result);
+            }
+            queryWrapper.eq(Product::getMerchantId, merchantId);
+        }
 
         // 分类筛选
         if (categoryId != null) {
@@ -138,6 +183,14 @@ public class UserProductController {
             return Result.failed("商品不存在或已下架");
         }
 
+        // 检查商户是否营业中
+        if (product.getMerchantId() != null) {
+            Merchant merchant = merchantService.getById(product.getMerchantId());
+            if (merchant == null || merchant.getStatus() != 1) {
+                return Result.failed("商户已休息，暂时无法查看该商品");
+            }
+        }
+
         Map<String, Object> result = new HashMap<>();
         result.put("id", product.getId());
         result.put("name", product.getName());
@@ -170,6 +223,7 @@ public class UserProductController {
                 merchantInfo.put("province", merchant.getProvince());
                 merchantInfo.put("city", merchant.getCity());
                 merchantInfo.put("district", merchant.getDistrict());
+                merchantInfo.put("status", merchant.getStatus());
                 result.put("merchant", merchantInfo);
             }
         }
@@ -348,5 +402,17 @@ public class UserProductController {
         product.setImage(imageUrlUtil.generateUrl(product.getImage()));
         product.setImages(imageUrlUtil.generateUrlsFromJson(product.getImages()));
         product.setVideo(imageUrlUtil.generateUrl(product.getVideo()));
+    }
+
+    /**
+     * 获取营业中的商户ID列表
+     */
+    private List<Long> getOpenMerchantIds() {
+        List<Merchant> openMerchants = merchantService.list(new LambdaQueryWrapper<Merchant>()
+                .eq(Merchant::getStatus, 1)
+                .select(Merchant::getId));
+        return openMerchants.stream()
+                .map(Merchant::getId)
+                .collect(Collectors.toList());
     }
 }

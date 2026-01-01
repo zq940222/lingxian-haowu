@@ -4,11 +4,13 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.lingxian.common.entity.Banner;
 import com.lingxian.common.entity.Category;
 import com.lingxian.common.entity.GroupActivity;
+import com.lingxian.common.entity.Merchant;
 import com.lingxian.common.entity.Product;
 import com.lingxian.common.result.Result;
 import com.lingxian.common.service.BannerService;
 import com.lingxian.common.service.CategoryService;
 import com.lingxian.common.service.GroupActivityService;
+import com.lingxian.common.service.MerchantService;
 import com.lingxian.common.service.ProductService;
 import com.lingxian.common.util.ImageUrlUtil;
 import io.swagger.v3.oas.annotations.Operation;
@@ -36,6 +38,7 @@ public class UserHomeController {
     private final CategoryService categoryService;
     private final ProductService productService;
     private final GroupActivityService groupActivityService;
+    private final MerchantService merchantService;
     private final ImageUrlUtil imageUrlUtil;
 
     @GetMapping("/home")
@@ -65,16 +68,24 @@ public class UserHomeController {
         });
         data.put("categories", categories);
 
-        // 拼团活动 - 进行中的活动，前4个
+        // 获取营业中的商户ID列表
+        List<Long> openMerchantIds = merchantService.list(new LambdaQueryWrapper<Merchant>()
+                .eq(Merchant::getStatus, 1)
+                .select(Merchant::getId))
+                .stream()
+                .map(Merchant::getId)
+                .collect(Collectors.toList());
+
+        // 拼团活动 - 进行中的活动，前4个（只显示营业中商户的商品）
         LocalDateTime now = LocalDateTime.now();
         List<GroupActivity> groupActivities = groupActivityService.list(new LambdaQueryWrapper<GroupActivity>()
                 .eq(GroupActivity::getStatus, 1)
                 .le(GroupActivity::getStartTime, now)
                 .ge(GroupActivity::getEndTime, now)
                 .orderByDesc(GroupActivity::getCreateTime)
-                .last("LIMIT 4"));
+                .last("LIMIT 20")); // 先取多一些，后面过滤
 
-        // 填充拼团活动的商品信息
+        // 填充拼团活动的商品信息，并过滤掉休息中商户的商品
         if (!groupActivities.isEmpty()) {
             List<Long> productIds = groupActivities.stream()
                     .map(GroupActivity::getProductId)
@@ -82,14 +93,20 @@ public class UserHomeController {
             Map<Long, Product> productMap = productService.listByIds(productIds).stream()
                     .collect(Collectors.toMap(Product::getId, p -> p));
 
-            groupActivities.forEach(activity -> {
-                Product product = productMap.get(activity.getProductId());
-                if (product != null) {
-                    activity.setProductName(product.getName());
-                    // 处理商品图片URL
-                    activity.setProductImage(imageUrlUtil.generateUrl(product.getImage()));
-                }
-            });
+            groupActivities = groupActivities.stream()
+                    .filter(activity -> {
+                        Product product = productMap.get(activity.getProductId());
+                        // 过滤：商品存在且商户营业中
+                        return product != null && openMerchantIds.contains(product.getMerchantId());
+                    })
+                    .limit(4) // 取前4个
+                    .peek(activity -> {
+                        Product product = productMap.get(activity.getProductId());
+                        activity.setProductName(product.getName());
+                        // 处理商品图片URL
+                        activity.setProductImage(imageUrlUtil.generateUrl(product.getImage()));
+                    })
+                    .collect(Collectors.toList());
         }
         data.put("groupActivities", groupActivities);
 

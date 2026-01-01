@@ -3,9 +3,11 @@ package com.lingxian.user.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lingxian.common.entity.Category;
+import com.lingxian.common.entity.Merchant;
 import com.lingxian.common.entity.Product;
 import com.lingxian.common.result.Result;
 import com.lingxian.common.service.CategoryService;
+import com.lingxian.common.service.MerchantService;
 import com.lingxian.common.service.ProductService;
 import com.lingxian.common.util.ImageUrlUtil;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,9 +16,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -27,6 +31,7 @@ public class UserCategoryController {
 
     private final CategoryService categoryService;
     private final ProductService productService;
+    private final MerchantService merchantService;
     private final ImageUrlUtil imageUrlUtil;
 
     @GetMapping
@@ -46,11 +51,25 @@ public class UserCategoryController {
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer pageSize) {
 
+        // 获取营业中的商户ID列表
+        List<Long> openMerchantIds = getOpenMerchantIds();
+
+        // 如果没有营业中的商户，返回空结果
+        if (openMerchantIds.isEmpty()) {
+            Map<String, Object> result = new HashMap<>();
+            result.put("records", new ArrayList<>());
+            result.put("total", 0);
+            result.put("page", page);
+            result.put("pageSize", pageSize);
+            return Result.success(result);
+        }
+
         Page<Product> pageResult = productService.page(
                 new Page<>(page, pageSize),
                 new LambdaQueryWrapper<Product>()
                         .eq(Product::getCategoryId, categoryId)
                         .eq(Product::getStatus, 1)
+                        .in(Product::getMerchantId, openMerchantIds)
                         .orderByDesc(Product::getSort)
                         .orderByDesc(Product::getCreateTime)
         );
@@ -91,5 +110,17 @@ public class UserCategoryController {
         product.setImage(imageUrlUtil.generateUrl(product.getImage()));
         product.setImages(imageUrlUtil.generateUrlsFromJson(product.getImages()));
         product.setVideo(imageUrlUtil.generateUrl(product.getVideo()));
+    }
+
+    /**
+     * 获取营业中的商户ID列表
+     */
+    private List<Long> getOpenMerchantIds() {
+        List<Merchant> openMerchants = merchantService.list(new LambdaQueryWrapper<Merchant>()
+                .eq(Merchant::getStatus, 1)
+                .select(Merchant::getId));
+        return openMerchants.stream()
+                .map(Merchant::getId)
+                .collect(Collectors.toList());
     }
 }
