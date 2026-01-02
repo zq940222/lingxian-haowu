@@ -61,6 +61,7 @@
         <view class="loading" v-if="loading">加载中...</view>
         <view class="no-more" v-if="noMore && records.length > 0">没有更多了</view>
         <view class="empty" v-if="!loading && records.length === 0">
+          <uni-icons type="list" size="64" color="#ccc" />
           <text>暂无记录</text>
         </view>
       </view>

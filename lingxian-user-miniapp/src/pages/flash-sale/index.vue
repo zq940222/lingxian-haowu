@@ -54,6 +54,7 @@
       <text>— 没有更多了 —</text>
     </view>
     <view class="empty" v-if="!loading && products.length === 0">
+      <uni-icons type="fire" size="64" color="#ccc" />
       <text>暂无抢购活动</text>
     </view>
   </view>

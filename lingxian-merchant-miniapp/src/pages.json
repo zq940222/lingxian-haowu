@@ -85,6 +85,12 @@
       }
     },
     {
+      "path": "pages/settings/community",
+      "style": {
+        "navigationBarTitleText": "配送小区管理"
+      }
+    },
+    {
       "path": "pages/settings/account",
       "style": {
         "navigationBarTitleText": "账号安全"

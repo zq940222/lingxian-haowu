@@ -118,7 +118,7 @@
 
     <!-- 空状态 -->
     <view class="empty" v-if="pendingOrders.length === 0">
-      <image src="/static/images/empty-order.png" mode="aspectFit" />
+      <uni-icons type="list" size="64" color="#ccc" />
       <text>暂无待处理订单</text>
     </view>
   </view>

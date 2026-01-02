@@ -98,7 +98,7 @@
       <view class="loading" v-if="loading">加载中...</view>
       <view class="no-more" v-if="noMore && comments.length > 0">没有更多评价了</view>
       <view class="empty" v-if="!loading && comments.length === 0">
-        <image src="/static/images/empty-order.png" mode="aspectFit" />
+        <uni-icons type="chat" size="64" color="#ccc" />
         <text>暂无评价</text>
       </view>
     </scroll-view>

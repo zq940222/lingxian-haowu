@@ -145,18 +145,64 @@
     <view class="no-more" v-if="noMore && products.length > 0">
       <text>— 没有更多了 —</text>
     </view>
+
+    <!-- 小区选择弹窗 -->
+    <uni-popup ref="communityPopup" type="bottom">
+      <view class="community-popup">
+        <view class="popup-header">
+          <text class="popup-title">选择配送小区</text>
+          <view class="popup-close" @click="closeCommunityPopup">
+            <uni-icons type="closeempty" size="24" color="#666" />
+          </view>
+        </view>
+        <view class="popup-tip">
+          <uni-icons type="info" size="14" color="#1890ff" />
+          <text>以下小区今日可配送</text>
+        </view>
+        <scroll-view scroll-y class="popup-body">
+          <view v-if="availableCommunities.length === 0" class="empty-community">
+            <uni-icons type="map-pin" size="48" color="#ccc" />
+            <text>暂无可配送小区</text>
+          </view>
+          <view
+            v-for="item in availableCommunities"
+            :key="item.id"
+            class="community-item"
+            :class="{ active: selectedCommunity && selectedCommunity.id === item.id }"
+            @click="selectCommunity(item)"
+          >
+            <view class="item-left">
+              <uni-icons
+                v-if="selectedCommunity && selectedCommunity.id === item.id"
+                type="checkbox-filled"
+                size="22"
+                color="#22c55e"
+              />
+              <uni-icons v-else type="circle" size="22" color="#ddd" />
+            </view>
+            <view class="item-center">
+              <text class="item-name">{{ item.name }}</text>
+              <text class="item-address">{{ item.fullAddress }}</text>
+            </view>
+          </view>
+        </scroll-view>
+      </view>
+    </uni-popup>
   </view>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app'
-import { homeApi } from '@/api'
+import { homeApi, communityApi } from '@/api'
 import { useCartStore } from '@/store/cart'
 
 const cartStore = useCartStore()
 
 const location = ref('')
+const communityPopup = ref(null)
+const availableCommunities = ref([])
+const selectedCommunity = ref(null)
 const banners = ref([])
 const categories = ref([])
 const groupActivities = ref([])
@@ -166,6 +212,7 @@ const page = ref(1)
 const pageSize = ref(10)
 const loading = ref(false)
 const noMore = ref(false)
+const userLocation = ref(null) // 用户当前位置
 
 // 限时抢购倒计时
 const countdown = reactive({
@@ -214,6 +261,8 @@ const startCountdown = () => {
 }
 
 onMounted(() => {
+  // 先加载可配送小区列表
+  loadAvailableCommunities()
   loadHomeData()
   loadProducts()
   startCountdown()
@@ -242,7 +291,11 @@ onReachBottom(() => {
 // 加载首页数据
 const loadHomeData = async () => {
   try {
-    const res = await homeApi.getHomeData()
+    const params = {}
+    if (selectedCommunity.value) {
+      params.communityId = selectedCommunity.value.id
+    }
+    const res = await homeApi.getHomeData(params)
     if (res.code === 200) {
       banners.value = res.data.banners || []
       categories.value = res.data.categories || []
@@ -259,10 +312,15 @@ const loadProducts = async () => {
   if (loading.value) return
   loading.value = true
   try {
-    const res = await homeApi.getRecommendProducts({
+    const params = {
       page: page.value,
       pageSize: pageSize.value
-    })
+    }
+    // 如果选择了小区，传递小区ID
+    if (selectedCommunity.value) {
+      params.communityId = selectedCommunity.value.id
+    }
+    const res = await homeApi.getRecommendProducts(params)
     if (res.code === 200) {
       const list = res.data.records || []
       products.value = [...products.value, ...list]
@@ -276,19 +334,136 @@ const loadProducts = async () => {
   }
 }
 
-// 选择位置
-const chooseLocation = () => {
-  uni.chooseLocation({
-    success: (res) => {
-      location.value = res.name || res.address
-      // 重新加载数据
-      page.value = 1
-      products.value = []
-      noMore.value = false
-      loadHomeData()
-      loadProducts()
-    }
+// 计算两点之间的距离（使用Haversine公式）
+const calculateDistance = (lat1, lng1, lat2, lng2) => {
+  const R = 6371 // 地球半径，单位：公里
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLng = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return R * c
+}
+
+// 获取用户位置
+const getUserLocation = () => {
+  return new Promise((resolve) => {
+    uni.getLocation({
+      type: 'gcj02',
+      success: (res) => {
+        userLocation.value = {
+          latitude: res.latitude,
+          longitude: res.longitude
+        }
+        resolve(userLocation.value)
+      },
+      fail: (err) => {
+        console.log('获取位置失败', err)
+        resolve(null)
+      }
+    })
   })
+}
+
+// 根据定位找到最近的小区
+const findNearestCommunity = (communities, userLoc) => {
+  if (!userLoc || !communities || communities.length === 0) return null
+
+  let nearest = null
+  let minDistance = Infinity
+
+  for (const community of communities) {
+    if (community.latitude && community.longitude) {
+      const distance = calculateDistance(
+        userLoc.latitude, userLoc.longitude,
+        community.latitude, community.longitude
+      )
+      if (distance < minDistance) {
+        minDistance = distance
+        nearest = community
+      }
+    }
+  }
+
+  return nearest
+}
+
+// 加载可配送小区
+const loadAvailableCommunities = async () => {
+  try {
+    const res = await communityApi.getAvailable()
+    if (res.code === 200) {
+      availableCommunities.value = res.data || []
+
+      // 恢复之前选择的小区
+      const savedCommunity = uni.getStorageSync('selectedCommunity')
+      if (savedCommunity) {
+        const found = availableCommunities.value.find(c => c.id === savedCommunity.id)
+        if (found) {
+          selectedCommunity.value = found
+          location.value = found.name
+          return
+        } else {
+          // 之前选择的小区今天不可配送，清除选择
+          uni.removeStorageSync('selectedCommunity')
+        }
+      }
+
+      // 没有已选小区，尝试根据定位自动分配
+      if (availableCommunities.value.length > 0) {
+        const userLoc = await getUserLocation()
+        if (userLoc) {
+          const nearest = findNearestCommunity(availableCommunities.value, userLoc)
+          if (nearest) {
+            selectedCommunity.value = nearest
+            location.value = nearest.name
+            uni.setStorageSync('selectedCommunity', nearest)
+            uni.showToast({
+              title: `已自动选择：${nearest.name}`,
+              icon: 'none',
+              duration: 2000
+            })
+            return
+          }
+        }
+
+        // 无法定位或没有找到最近小区，弹出选择弹窗
+        setTimeout(() => {
+          if (!selectedCommunity.value && communityPopup.value) {
+            communityPopup.value.open()
+          }
+        }, 500)
+      }
+    }
+  } catch (e) {
+    console.error('加载可配送小区失败', e)
+  }
+}
+
+// 选择位置 - 打开小区选择弹窗
+const chooseLocation = () => {
+  communityPopup.value.open()
+}
+
+// 关闭小区选择弹窗
+const closeCommunityPopup = () => {
+  communityPopup.value.close()
+}
+
+// 选择小区
+const selectCommunity = (item) => {
+  selectedCommunity.value = item
+  location.value = item.name
+  // 保存选择到本地
+  uni.setStorageSync('selectedCommunity', item)
+  closeCommunityPopup()
+  // 重新加载数据
+  page.value = 1
+  products.value = []
+  noMore.value = false
+  loadHomeData()
+  loadProducts()
 }
 
 // 跳转搜索
@@ -762,4 +937,122 @@ const addToCart = async (item) => {
   font-size: 26rpx;
   color: #9ca3af;
 }
+
+/* 小区选择弹窗 */
+.community-popup {
+  background-color: #fff;
+  border-radius: 24rpx 24rpx 0 0;
+  max-height: 70vh;
+}
+
+.popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 30rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.popup-title {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #333;
+}
+
+.popup-close {
+  padding: 10rpx;
+}
+
+.popup-tip {
+  display: flex;
+  align-items: center;
+  padding: 20rpx 30rpx;
+  background-color: #e6f7ff;
+}
+
+.popup-tip text {
+  margin-left: 10rpx;
+  font-size: 24rpx;
+  color: #1890ff;
+}
+
+.popup-body {
+  max-height: 50vh;
+  padding: 0 30rpx;
+  padding-bottom: calc(120rpx + env(safe-area-inset-bottom));
+}
+
+.empty-community {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80rpx 0;
+}
+
+.empty-community text {
+  margin-top: 20rpx;
+  font-size: 28rpx;
+  color: #999;
+}
+
+.community-list {
+  padding-bottom: 20rpx;
+}
+
+.community-item {
+  display: flex;
+  align-items: center;
+  padding: 24rpx 0;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.community-item:last-child {
+  border-bottom: none;
+}
+
+.community-item.active {
+  background-color: #f0fdf4;
+  margin: 0 -30rpx;
+  padding: 24rpx 30rpx;
+  border-radius: 12rpx;
+}
+
+.item-left {
+  flex-shrink: 0;
+  width: 44rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.item-center {
+  flex: 1;
+  min-width: 0;
+  margin-left: 16rpx;
+  margin-right: 16rpx;
+  display: flex;
+  flex-direction: column;
+}
+
+.item-name {
+  font-size: 30rpx;
+  color: #333;
+  font-weight: 500;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item-address {
+  font-size: 24rpx;
+  color: #999;
+  margin-top: 6rpx;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 </style>

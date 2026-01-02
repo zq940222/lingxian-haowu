@@ -18,7 +18,7 @@ export const authApi = {
 // ============ 首页数据 ============
 export const homeApi = {
   // 获取首页数据
-  getHomeData: () => get('/user/home'),
+  getHomeData: (params) => get('/user/home', params),
   // 获取轮播图
   getBanners: () => get('/user/banners'),
   // 获取推荐商品
@@ -153,4 +153,14 @@ export const commentApi = {
   getDetail: (id) => get(`/user/comments/${id}`),
   // 获取订单评价
   getOrderComment: (orderId) => get(`/user/orders/${orderId}/comment`)
+}
+
+// ============ 小区 ============
+export const communityApi = {
+  // 获取当前可配送的小区列表
+  getAvailable: () => get('/user/community/available'),
+  // 获取小区详情
+  getDetail: (id) => get(`/user/community/${id}`),
+  // 获取小区可配送的商户ID列表
+  getMerchants: (id) => get(`/user/community/${id}/merchants`)
 }

@@ -2,7 +2,9 @@
   <view class="container">
     <!-- 未登录状态 -->
     <view class="not-login" v-if="!userStore.isLogin">
-      <image src="/static/images/empty-cart.png" mode="aspectFit" />
+      <view class="empty-icon">
+        <uni-icons type="cart" size="80" color="#ccc" />
+      </view>
       <text class="tip">登录后可同步购物车</text>
       <button class="login-btn" open-type="getUserInfo" @click="handleLogin">
         微信授权登录
@@ -11,7 +13,9 @@
 
     <!-- 空购物车 -->
     <view class="empty" v-else-if="!loading && !cartStore.hasItems">
-      <image src="/static/images/empty-cart.png" mode="aspectFit" />
+      <view class="empty-icon">
+        <uni-icons type="cart" size="80" color="#ccc" />
+      </view>
       <text>购物车空空如也</text>
       <view class="btn" @click="goHome">去逛逛</view>
     </view>
@@ -173,9 +177,9 @@ const decrease = (item) => {
 const removeItem = async (item) => {
   try {
     await showConfirm('确定删除该商品吗？')
-    cartStore.remove(item.id)
+    await cartStore.remove(item.id)
   } catch (e) {
-    // 取消
+    // 取消删除
   }
 }
 
@@ -215,15 +219,13 @@ const checkout = () => {
   align-items: center;
   padding-top: 200rpx;
 
-  image {
-    width: 240rpx;
-    height: 240rpx;
+  .empty-icon {
+    margin-bottom: 20rpx;
   }
 
   .tip {
     font-size: 28rpx;
     color: #999;
-    margin-top: 20rpx;
   }
 
   .login-btn {
@@ -250,15 +252,13 @@ const checkout = () => {
   align-items: center;
   padding-top: 200rpx;
 
-  image {
-    width: 240rpx;
-    height: 240rpx;
+  .empty-icon {
+    margin-bottom: 20rpx;
   }
 
   text {
     font-size: 28rpx;
     color: #999;
-    margin-top: 20rpx;
   }
 
   .btn {

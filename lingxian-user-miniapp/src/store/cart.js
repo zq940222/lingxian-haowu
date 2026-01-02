@@ -125,26 +125,11 @@ export const useCartStore = defineStore('cart', {
     // 删除商品
     async remove(id) {
       try {
-        const res = await cartApi.remove(id)
-        if (res.code === 200) {
-          // 从分组中移除商品
-          for (const group of this.merchantGroups) {
-            const index = group.items?.findIndex(i => i.id === id)
-            if (index !== undefined && index >= 0) {
-              group.items.splice(index, 1)
-              // 如果商户下没有商品了，移除该商户分组
-              if (group.items.length === 0) {
-                const groupIndex = this.merchantGroups.indexOf(group)
-                this.merchantGroups.splice(groupIndex, 1)
-              }
-              break
-            }
-          }
-          this.recalculateTotals()
-          this.updateTabBarBadge()
-        }
+        await cartApi.remove(id)
+        await this.fetchList()
       } catch (e) {
         console.error('删除失败', e)
+        await this.fetchList()
       }
     },
 

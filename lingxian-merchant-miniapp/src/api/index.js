@@ -135,6 +135,24 @@ export const shopApi = {
   updateDeliverySettings: (data) => put('/merchant/shop/delivery-settings', data)
 }
 
+// ============ 配送小区管理 ============
+export const communityApi = {
+  // 获取所有小区列表（含配送状态）
+  getList: () => get('/merchant/community/list'),
+  // 获取我的配送小区
+  getMyCommunities: () => get('/merchant/community/my'),
+  // 获取当前开放的配送小区
+  getEnabled: () => get('/merchant/community/enabled'),
+  // 添加配送小区
+  add: (communityId) => post('/merchant/community/add', { communityId }),
+  // 删除配送小区
+  remove: (configId) => del(`/merchant/community/${configId}`),
+  // 切换配送小区状态
+  toggle: (configId, enabled) => put(`/merchant/community/${configId}/toggle`, { enabled }),
+  // 批量切换状态
+  batchToggle: (configIds, enabled) => put('/merchant/community/batch-toggle', { configIds, enabled })
+}
+
 // ============ 用户/账号 ============
 export const userApi = {
   // 获取账号信息

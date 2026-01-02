@@ -46,10 +46,9 @@ public class UserCartController {
             return Result.failed(401, "请先登录");
         }
 
-        // 查询购物车列表
+        // 查询购物车列表 (@TableLogic 会自动过滤 deleted=1 的记录)
         LambdaQueryWrapper<Cart> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(Cart::getUserId, userId)
-                .eq(Cart::getDeleted, 0)
                 .orderByDesc(Cart::getUpdateTime);
 
         List<Cart> cartList = cartService.list(queryWrapper);
@@ -195,11 +194,10 @@ public class UserCartController {
             return Result.failed("库存不足");
         }
 
-        // 查询购物车是否已有该商品
+        // 查询购物车是否已有该商品 (@TableLogic 会自动过滤 deleted=1 的记录)
         LambdaQueryWrapper<Cart> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(Cart::getUserId, userId)
-                .eq(Cart::getProductId, productId)
-                .eq(Cart::getDeleted, 0);
+                .eq(Cart::getProductId, productId);
 
         Cart existCart = cartService.getOne(queryWrapper);
 
@@ -284,9 +282,8 @@ public class UserCartController {
             return Result.failed("购物车商品不存在");
         }
 
-        cart.setDeleted(1);
-        cart.setUpdateTime(LocalDateTime.now());
-        cartService.updateById(cart);
+        // 使用 removeById 触发 @TableLogic 逻辑删除
+        cartService.removeById(id);
 
         return Result.success();
     }
@@ -301,13 +298,10 @@ public class UserCartController {
             return Result.failed(401, "请先登录");
         }
 
-        LambdaUpdateWrapper<Cart> updateWrapper = new LambdaUpdateWrapper<>();
-        updateWrapper.eq(Cart::getUserId, userId)
-                .eq(Cart::getDeleted, 0)
-                .set(Cart::getDeleted, 1)
-                .set(Cart::getUpdateTime, LocalDateTime.now());
-
-        cartService.update(updateWrapper);
+        // 使用 remove 触发 @TableLogic 逻辑删除
+        LambdaQueryWrapper<Cart> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(Cart::getUserId, userId);
+        cartService.remove(queryWrapper);
 
         return Result.success();
     }

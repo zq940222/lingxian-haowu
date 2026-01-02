@@ -88,7 +88,9 @@
       <view class="loading" v-if="loading">加载中...</view>
       <view class="no-more" v-if="noMore && orders.length > 0">没有更多订单了</view>
       <view class="empty" v-if="!loading && orders.length === 0">
-        <image src="/static/images/empty-order.png" mode="aspectFit" />
+        <view class="empty-icon">
+          <uni-icons type="list" size="80" color="#ccc" />
+        </view>
         <text>暂无订单</text>
         <view class="go-shop" @click="goHome">去逛逛</view>
       </view>
@@ -360,6 +362,7 @@ const goHome = () => {
 .order-list {
   flex: 1;
   padding: 20rpx;
+  box-sizing: border-box;
 }
 
 .order-item {
@@ -367,6 +370,7 @@ const goHome = () => {
   border-radius: $border-radius-lg;
   margin-bottom: 20rpx;
   overflow: hidden;
+  box-sizing: border-box;
 
   .order-header {
     display: flex;
@@ -378,23 +382,32 @@ const goHome = () => {
     .shop-info {
       display: flex;
       align-items: center;
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
 
       image {
         width: 48rpx;
         height: 48rpx;
         border-radius: 8rpx;
         margin-right: 16rpx;
+        flex-shrink: 0;
       }
 
       .shop-name {
         font-size: 28rpx;
         font-weight: bold;
         color: #333;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
     }
 
     .status {
       font-size: 26rpx;
+      flex-shrink: 0;
+      margin-left: 16rpx;
 
       &.pending { color: #ff9800; }
       &.wait { color: #1890ff; }
@@ -425,11 +438,16 @@ const goHome = () => {
 
       .info {
         flex: 1;
+        min-width: 0;
+        overflow: hidden;
 
         .name {
           font-size: 28rpx;
           color: #333;
           display: block;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
 
         .spec {
@@ -437,16 +455,22 @@ const goHome = () => {
           color: #999;
           margin-top: 8rpx;
           display: block;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
       }
 
       .right {
         text-align: right;
+        flex-shrink: 0;
+        margin-left: 16rpx;
 
         .price {
           font-size: 28rpx;
           color: #333;
           display: block;
+          white-space: nowrap;
         }
 
         .quantity {
@@ -454,6 +478,7 @@ const goHome = () => {
           color: #999;
           margin-top: 8rpx;
           display: block;
+          white-space: nowrap;
         }
       }
     }
@@ -468,15 +493,15 @@ const goHome = () => {
   }
 
   .order-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
     padding: 20rpx 24rpx;
     border-top: 1rpx solid #f0f0f0;
+    box-sizing: border-box;
 
     .total {
       font-size: 26rpx;
       color: #666;
+      text-align: right;
+      margin-bottom: 16rpx;
 
       .amount {
         margin-left: 16rpx;
@@ -490,12 +515,16 @@ const goHome = () => {
 
     .actions {
       display: flex;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      gap: 12rpx;
 
       .btn {
-        padding: 14rpx 32rpx;
+        padding: 14rpx 24rpx;
         border-radius: 32rpx;
-        font-size: 26rpx;
-        margin-left: 16rpx;
+        font-size: 24rpx;
+        white-space: nowrap;
+        flex-shrink: 0;
 
         &.default {
           background-color: #f5f5f5;
@@ -524,9 +553,7 @@ const goHome = () => {
   align-items: center;
   padding: 100rpx 0;
 
-  image {
-    width: 200rpx;
-    height: 200rpx;
+  .empty-icon {
     margin-bottom: 20rpx;
   }
 

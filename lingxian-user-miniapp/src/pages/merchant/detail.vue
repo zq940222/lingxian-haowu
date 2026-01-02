@@ -51,13 +51,13 @@
     <view class="action-bar" v-if="merchant.contactPhone || merchant.address">
       <view class="action-item" @click="callPhone" v-if="merchant.contactPhone">
         <view class="action-icon phone-icon">
-          <view class="icon-phone"></view>
+          <uni-icons type="phone" size="28" color="#fff" />
         </view>
         <text class="action-text">联系商家</text>
       </view>
       <view class="action-item" @click="openLocation" v-if="merchant.address">
         <view class="action-icon location-icon">
-          <view class="icon-location"></view>
+          <uni-icons type="location" size="28" color="#fff" />
         </view>
         <text class="action-text">店铺地址</text>
       </view>
@@ -141,7 +141,9 @@
 
       <!-- 空状态 -->
       <view class="empty-state" v-if="!loading && products.length === 0">
-        <image src="/static/images/empty-product.png" mode="aspectFit" />
+        <view class="empty-icon">
+          <uni-icons type="shop" size="80" color="#ccc" />
+        </view>
         <text class="empty-text">暂无商品</text>
         <text class="empty-hint">店家正在努力上架中~</text>
       </view>
@@ -460,52 +462,10 @@ onReachBottom(() => {
 
       &.phone-icon {
         background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-
-        .icon-phone {
-          width: 24rpx;
-          height: 24rpx;
-          border: 3rpx solid #fff;
-          border-radius: 4rpx;
-          position: relative;
-          transform: rotate(-20deg);
-
-          &::before {
-            content: '';
-            position: absolute;
-            width: 8rpx;
-            height: 8rpx;
-            background: #fff;
-            border-radius: 50%;
-            bottom: 3rpx;
-            left: 50%;
-            transform: translateX(-50%);
-          }
-        }
       }
 
       &.location-icon {
         background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-
-        .icon-location {
-          width: 20rpx;
-          height: 20rpx;
-          border: 3rpx solid #fff;
-          border-radius: 50% 50% 50% 0;
-          transform: rotate(-45deg);
-          position: relative;
-
-          &::before {
-            content: '';
-            position: absolute;
-            width: 6rpx;
-            height: 6rpx;
-            background: #fff;
-            border-radius: 50%;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-          }
-        }
       }
     }
 
@@ -753,14 +713,11 @@ onReachBottom(() => {
   align-items: center;
   padding: 80rpx 0;
 
-  image {
-    width: 240rpx;
-    height: 240rpx;
-    opacity: 0.6;
+  .empty-icon {
+    margin-bottom: 20rpx;
   }
 
   .empty-text {
-    margin-top: 20rpx;
     font-size: 30rpx;
     color: #666;
   }

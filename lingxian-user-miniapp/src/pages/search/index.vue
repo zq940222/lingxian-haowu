@@ -80,7 +80,9 @@
       <view class="loading" v-if="loading">加载中...</view>
       <view class="no-more" v-if="noMore && products.length > 0">没有更多了</view>
       <view class="empty" v-if="!loading && products.length === 0">
-        <image src="/static/images/empty-search.png" mode="aspectFit" />
+        <view class="empty-icon">
+          <uni-icons type="search" size="80" color="#ccc" />
+        </view>
         <text>未找到相关商品</text>
       </view>
     </scroll-view>
@@ -380,9 +382,7 @@ const goBack = () => {
   align-items: center;
   padding: 100rpx 0;
 
-  image {
-    width: 200rpx;
-    height: 200rpx;
+  .empty-icon {
     margin-bottom: 20rpx;
   }
 

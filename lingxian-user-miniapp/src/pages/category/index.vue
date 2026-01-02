@@ -65,6 +65,7 @@
       <view class="loading" v-if="loading">加载中...</view>
       <view class="no-more" v-if="noMore && products.length > 0">没有更多了</view>
       <view class="empty" v-if="!loading && products.length === 0">
+        <uni-icons type="shop" size="64" color="#ccc" />
         <text>暂无商品</text>
       </view>
     </scroll-view>

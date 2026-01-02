@@ -153,15 +153,35 @@ const deliveryTime = ref('now')
 const showTimePicker = ref(false)
 const deliveryFeePerOrder = ref(5) // 每单配送费
 const discountAmount = ref(0)
+const selectedCommunity = ref(null) // 用户选择的配送小区
 
 // 时间段
 const timeSlots = ref([])
 
 onLoad(() => {
   generateTimeSlots()
+  // 获取用户选择的配送小区
+  const community = uni.getStorageSync('selectedCommunity')
+  if (community) {
+    selectedCommunity.value = community
+  }
 })
 
 onShow(() => {
+  // 检查是否选择了小区
+  const community = uni.getStorageSync('selectedCommunity')
+  if (!community) {
+    uni.showModal({
+      title: '提示',
+      content: '请先选择配送小区',
+      showCancel: false,
+      success: () => {
+        uni.switchTab({ url: '/pages/index/index' })
+      }
+    })
+    return
+  }
+  selectedCommunity.value = community
   loadDefaultAddress()
   loadCartItems()
 })
@@ -239,7 +259,7 @@ const deliveryTimeText = computed(() => {
 })
 
 const canSubmit = computed(() => {
-  return selectedAddress.value && merchantOrders.value.length > 0
+  return selectedAddress.value && merchantOrders.value.length > 0 && selectedCommunity.value
 })
 
 // 选择地址
@@ -281,6 +301,10 @@ const mockPayment = (totalPay) => {
 // 提交订单
 const submitOrder = async () => {
   if (!canSubmit.value) {
+    if (!selectedCommunity.value) {
+      uni.showToast({ title: '请先选择配送小区', icon: 'none' })
+      return
+    }
     if (!selectedAddress.value) {
       uni.showToast({ title: '请选择收货地址', icon: 'none' })
     }
@@ -293,10 +317,11 @@ const submitOrder = async () => {
   try {
     uni.showLoading({ title: '提交中...' })
 
-    // 构建多商户订单数据
+    // 构建多商户订单数据，添加小区ID用于后端验证
     const ordersData = merchantOrders.value.map(order => ({
       merchantId: order.merchantId,
       addressId: selectedAddress.value.id,
+      communityId: selectedCommunity.value.id,
       products: order.items.map(item => ({
         productId: item.productId,
         quantity: item.quantity

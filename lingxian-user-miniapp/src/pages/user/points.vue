@@ -85,7 +85,8 @@
         没有更多了
       </view>
       <view class="empty" v-if="records.length === 0">
-        暂无积分记录
+        <uni-icons type="medal" size="64" color="#ccc" />
+        <text>暂无积分记录</text>
       </view>
     </view>
   </view>

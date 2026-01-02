@@ -45,7 +45,9 @@
       <view class="loading" v-if="loading">加载中...</view>
       <view class="no-more" v-if="noMore && activities.length > 0">没有更多了</view>
       <view class="empty" v-if="!loading && activities.length === 0">
-        <image src="/static/images/empty-group.png" mode="aspectFit" />
+        <view class="empty-icon">
+          <uni-icons type="personadd" size="80" color="#ccc" />
+        </view>
         <text>暂无拼团活动</text>
       </view>
     </scroll-view>
@@ -284,9 +286,7 @@ const goDetail = (id) => {
   align-items: center;
   padding: 100rpx 0;
 
-  image {
-    width: 200rpx;
-    height: 200rpx;
+  .empty-icon {
     margin-bottom: 20rpx;
   }
 

@@ -35,6 +35,8 @@ public class UserOrderController {
     private final CartService cartService;
     private final MerchantService merchantService;
     private final ProductCommentService productCommentService;
+    private final MerchantCommunityService merchantCommunityService;
+    private final CommunityService communityService;
     private final ImageUrlUtil imageUrlUtil;
 
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -148,6 +150,8 @@ public class UserOrderController {
                     Long.parseLong(orderData.get("merchantId").toString()) : null;
             Long addressId = orderData.get("addressId") != null ?
                     Long.parseLong(orderData.get("addressId").toString()) : null;
+            Long communityId = orderData.get("communityId") != null ?
+                    Long.parseLong(orderData.get("communityId").toString()) : null;
             String deliveryTime = (String) orderData.get("deliveryTime");
             String remark = (String) orderData.get("remark");
 
@@ -156,6 +160,10 @@ public class UserOrderController {
 
             if (addressId == null) {
                 return Result.failed("收货地址不能为空");
+            }
+
+            if (communityId == null) {
+                return Result.failed("请先选择配送小区");
             }
 
             if (products == null || products.isEmpty()) {
@@ -168,8 +176,28 @@ public class UserOrderController {
                 return Result.failed("收货地址不存在");
             }
 
+            // 验证小区是否存在
+            Community community = communityService.getById(communityId);
+            if (community == null || community.getStatus() != 1) {
+                return Result.failed("所选小区不可配送");
+            }
+
             // 查询商户信息
             Merchant merchant = merchantId != null ? merchantService.getById(merchantId) : null;
+
+            // 验证商户是否对该小区开放配送
+            if (merchantId != null) {
+                LambdaQueryWrapper<MerchantCommunity> mcQuery = new LambdaQueryWrapper<>();
+                mcQuery.eq(MerchantCommunity::getMerchantId, merchantId)
+                        .eq(MerchantCommunity::getCommunityId, communityId)
+                        .eq(MerchantCommunity::getEnabled, 1)
+                        .eq(MerchantCommunity::getDeleted, 0);
+                MerchantCommunity mc = merchantCommunityService.getOne(mcQuery);
+                if (mc == null) {
+                    String merchantName = merchant != null ? merchant.getName() : "该商户";
+                    return Result.failed(merchantName + "暂不支持配送到" + community.getName());
+                }
+            }
 
             // 计算订单金额并创建订单项
             java.math.BigDecimal orderTotalAmount = java.math.BigDecimal.ZERO;

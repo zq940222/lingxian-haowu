@@ -7,9 +7,11 @@ import com.lingxian.common.entity.GroupActivity;
 import com.lingxian.common.entity.Merchant;
 import com.lingxian.common.entity.Product;
 import com.lingxian.common.result.Result;
+import com.lingxian.common.entity.MerchantCommunity;
 import com.lingxian.common.service.BannerService;
 import com.lingxian.common.service.CategoryService;
 import com.lingxian.common.service.GroupActivityService;
+import com.lingxian.common.service.MerchantCommunityService;
 import com.lingxian.common.service.MerchantService;
 import com.lingxian.common.service.ProductService;
 import com.lingxian.common.util.ImageUrlUtil;
@@ -19,7 +21,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.ArrayList;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -39,11 +44,13 @@ public class UserHomeController {
     private final ProductService productService;
     private final GroupActivityService groupActivityService;
     private final MerchantService merchantService;
+    private final MerchantCommunityService merchantCommunityService;
     private final ImageUrlUtil imageUrlUtil;
 
     @GetMapping("/home")
     @Operation(summary = "获取首页数据")
-    public Result<Map<String, Object>> getHomeData() {
+    public Result<Map<String, Object>> getHomeData(
+            @RequestParam(required = false) Long communityId) {
         Map<String, Object> data = new HashMap<>();
 
         // 轮播图 - 首页位置(position=1)，启用状态(status=1)
@@ -68,7 +75,56 @@ public class UserHomeController {
         });
         data.put("categories", categories);
 
-        // 获取营业中的商户ID列表
+        // 获取可用的商户ID列表（营业中且可配送到指定小区）
+        List<Long> availableMerchantIds = getAvailableMerchantIds(communityId);
+
+        // 拼团活动 - 进行中的活动，前4个（只显示可用商户的商品）
+        LocalDateTime now = LocalDateTime.now();
+        List<GroupActivity> groupActivities = new ArrayList<>();
+
+        if (!availableMerchantIds.isEmpty()) {
+            groupActivities = groupActivityService.list(new LambdaQueryWrapper<GroupActivity>()
+                    .eq(GroupActivity::getStatus, 1)
+                    .le(GroupActivity::getStartTime, now)
+                    .ge(GroupActivity::getEndTime, now)
+                    .orderByDesc(GroupActivity::getCreateTime)
+                    .last("LIMIT 20")); // 先取多一些，后面过滤
+
+            // 填充拼团活动的商品信息，并过滤掉不可用商户的商品
+            if (!groupActivities.isEmpty()) {
+                List<Long> productIds = groupActivities.stream()
+                        .map(GroupActivity::getProductId)
+                        .collect(Collectors.toList());
+                Map<Long, Product> productMap = productService.listByIds(productIds).stream()
+                        .collect(Collectors.toMap(Product::getId, p -> p));
+
+                groupActivities = groupActivities.stream()
+                        .filter(activity -> {
+                            Product product = productMap.get(activity.getProductId());
+                            // 过滤：商品存在且商户可用
+                            return product != null && availableMerchantIds.contains(product.getMerchantId());
+                        })
+                        .limit(4) // 取前4个
+                        .peek(activity -> {
+                            Product product = productMap.get(activity.getProductId());
+                            activity.setProductName(product.getName());
+                            // 处理商品图片URL
+                            activity.setProductImage(imageUrlUtil.generateUrl(product.getImage()));
+                        })
+                        .collect(Collectors.toList());
+            }
+        }
+        data.put("groupActivities", groupActivities);
+
+        return Result.success(data);
+    }
+
+    /**
+     * 获取可用的商户ID列表（营业中且可配送到指定小区）
+     * @param communityId 小区ID，如果为null则返回所有营业中的商户
+     */
+    private List<Long> getAvailableMerchantIds(Long communityId) {
+        // 先获取营业中的商户ID
         List<Long> openMerchantIds = merchantService.list(new LambdaQueryWrapper<Merchant>()
                 .eq(Merchant::getStatus, 1)
                 .select(Merchant::getId))
@@ -76,41 +132,34 @@ public class UserHomeController {
                 .map(Merchant::getId)
                 .collect(Collectors.toList());
 
-        // 拼团活动 - 进行中的活动，前4个（只显示营业中商户的商品）
-        LocalDateTime now = LocalDateTime.now();
-        List<GroupActivity> groupActivities = groupActivityService.list(new LambdaQueryWrapper<GroupActivity>()
-                .eq(GroupActivity::getStatus, 1)
-                .le(GroupActivity::getStartTime, now)
-                .ge(GroupActivity::getEndTime, now)
-                .orderByDesc(GroupActivity::getCreateTime)
-                .last("LIMIT 20")); // 先取多一些，后面过滤
+        if (openMerchantIds.isEmpty()) {
+            return openMerchantIds;
+        }
 
-        // 填充拼团活动的商品信息，并过滤掉休息中商户的商品
-        if (!groupActivities.isEmpty()) {
-            List<Long> productIds = groupActivities.stream()
-                    .map(GroupActivity::getProductId)
+        // 如果指定了小区，还要过滤该小区可配送的商户
+        if (communityId != null) {
+            // 查询该小区开放配送的商户ID
+            List<MerchantCommunity> merchantCommunities = merchantCommunityService.list(
+                    new LambdaQueryWrapper<MerchantCommunity>()
+                            .eq(MerchantCommunity::getCommunityId, communityId)
+                            .eq(MerchantCommunity::getEnabled, 1)
+            );
+
+            if (merchantCommunities.isEmpty()) {
+                return new ArrayList<>();
+            }
+
+            List<Long> communityMerchantIds = merchantCommunities.stream()
+                    .map(MerchantCommunity::getMerchantId)
                     .collect(Collectors.toList());
-            Map<Long, Product> productMap = productService.listByIds(productIds).stream()
-                    .collect(Collectors.toMap(Product::getId, p -> p));
 
-            groupActivities = groupActivities.stream()
-                    .filter(activity -> {
-                        Product product = productMap.get(activity.getProductId());
-                        // 过滤：商品存在且商户营业中
-                        return product != null && openMerchantIds.contains(product.getMerchantId());
-                    })
-                    .limit(4) // 取前4个
-                    .peek(activity -> {
-                        Product product = productMap.get(activity.getProductId());
-                        activity.setProductName(product.getName());
-                        // 处理商品图片URL
-                        activity.setProductImage(imageUrlUtil.generateUrl(product.getImage()));
-                    })
+            // 取交集：营业中且可配送到该小区的商户
+            openMerchantIds = openMerchantIds.stream()
+                    .filter(communityMerchantIds::contains)
                     .collect(Collectors.toList());
         }
-        data.put("groupActivities", groupActivities);
 
-        return Result.success(data);
+        return openMerchantIds;
     }
 
     @GetMapping("/banners")

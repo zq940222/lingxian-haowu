@@ -63,7 +63,9 @@
 
     <!-- 无评价 -->
     <view class="empty" v-if="!loading && !comment">
-      <image src="/static/images/empty-order.png" mode="aspectFit" />
+      <view class="empty-icon">
+        <uni-icons type="chat" size="80" color="#ccc" />
+      </view>
       <text>暂无评价</text>
     </view>
   </view>
@@ -261,9 +263,7 @@ const goProduct = () => {
   align-items: center;
   padding: 100rpx 0;
 
-  image {
-    width: 200rpx;
-    height: 200rpx;
+  .empty-icon {
     margin-bottom: 20rpx;
   }
 

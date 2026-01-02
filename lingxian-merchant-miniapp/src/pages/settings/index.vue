@@ -56,6 +56,13 @@
         <text class="label">配送设置</text>
         <uni-icons type="right" size="16" color="#999" />
       </view>
+      <view class="menu-item" @click="goCommunitySettings">
+        <view class="icon-wrap community">
+          <uni-icons type="map-pin" size="22" color="#fff" />
+        </view>
+        <text class="label">配送小区</text>
+        <uni-icons type="right" size="16" color="#999" />
+      </view>
     </view>
 
     <!-- 账号与其他 -->
@@ -153,6 +160,11 @@ const goShopSettings = () => {
 // 配送设置
 const goDeliverySettings = () => {
   uni.navigateTo({ url: '/pages/settings/delivery' })
+}
+
+// 配送小区
+const goCommunitySettings = () => {
+  uni.navigateTo({ url: '/pages/settings/community' })
 }
 
 // 账号安全
@@ -267,6 +279,7 @@ const handleLogout = async () => {
     &.bank { background-color: #2196f3; }
     &.shop { background-color: #1890ff; }
     &.delivery { background-color: #fa8c16; }
+    &.community { background-color: #13c2c2; }
     &.account { background-color: #722ed1; }
     &.about { background-color: #8c8c8c; }
   }

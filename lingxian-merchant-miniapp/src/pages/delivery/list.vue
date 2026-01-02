@@ -131,7 +131,7 @@
       <view class="loading" v-if="loading">加载中...</view>
       <view class="no-more" v-if="noMore && orders.length > 0">没有更多了</view>
       <view class="empty" v-if="!loading && orders.length === 0">
-        <image src="/static/images/empty-delivery.png" mode="aspectFit" />
+        <uni-icons type="car" size="64" color="#ccc" />
         <text>暂无配送订单</text>
       </view>
     </scroll-view>

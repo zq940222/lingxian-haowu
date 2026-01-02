@@ -8,7 +8,9 @@ import com.lingxian.common.entity.Product;
 import com.lingxian.common.entity.ProductComment;
 import com.lingxian.common.entity.User;
 import com.lingxian.common.result.Result;
+import com.lingxian.common.entity.MerchantCommunity;
 import com.lingxian.common.service.GroupActivityService;
+import com.lingxian.common.service.MerchantCommunityService;
 import com.lingxian.common.service.MerchantService;
 import com.lingxian.common.service.ProductCommentService;
 import com.lingxian.common.service.ProductService;
@@ -41,6 +43,7 @@ public class UserProductController {
     private final ProductService productService;
     private final GroupActivityService groupActivityService;
     private final MerchantService merchantService;
+    private final MerchantCommunityService merchantCommunityService;
     private final ProductCommentService commentService;
     private final UserService userService;
     private final ImageUrlUtil imageUrlUtil;
@@ -51,10 +54,11 @@ public class UserProductController {
     @Operation(summary = "获取推荐商品")
     public Result<Map<String, Object>> getRecommendProducts(
             @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "10") Integer pageSize) {
+            @RequestParam(defaultValue = "10") Integer pageSize,
+            @RequestParam(required = false) Long communityId) {
 
-        // 获取营业中的商户ID列表
-        List<Long> openMerchantIds = getOpenMerchantIds();
+        // 获取营业中的商户ID列表（如果指定了小区，还要过滤该小区可配送的商户）
+        List<Long> openMerchantIds = getAvailableMerchantIds(communityId);
 
         LambdaQueryWrapper<Product> queryWrapper = new LambdaQueryWrapper<Product>()
                 .eq(Product::getStatus, 1)
@@ -95,14 +99,15 @@ public class UserProductController {
     public Result<Map<String, Object>> getProductList(
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) Long merchantId,
+            @RequestParam(required = false) Long communityId,
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "default") String sortType,
             @RequestParam(defaultValue = "asc") String priceOrder,
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer pageSize) {
 
-        // 获取营业中的商户ID列表
-        List<Long> openMerchantIds = getOpenMerchantIds();
+        // 获取营业中的商户ID列表（如果指定了小区，还要过滤该小区可配送的商户）
+        List<Long> openMerchantIds = getAvailableMerchantIds(communityId);
 
         // 如果没有营业中的商户，返回空结果
         if (openMerchantIds.isEmpty()) {
@@ -414,5 +419,43 @@ public class UserProductController {
         return openMerchants.stream()
                 .map(Merchant::getId)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * 获取可用的商户ID列表（营业中且可配送到指定小区）
+     * @param communityId 小区ID，如果为null则返回所有营业中的商户
+     */
+    private List<Long> getAvailableMerchantIds(Long communityId) {
+        // 先获取营业中的商户ID
+        List<Long> openMerchantIds = getOpenMerchantIds();
+
+        if (openMerchantIds.isEmpty()) {
+            return openMerchantIds;
+        }
+
+        // 如果指定了小区，还要过滤该小区可配送的商户
+        if (communityId != null) {
+            // 查询该小区开放配送的商户ID
+            List<MerchantCommunity> merchantCommunities = merchantCommunityService.list(
+                    new LambdaQueryWrapper<MerchantCommunity>()
+                            .eq(MerchantCommunity::getCommunityId, communityId)
+                            .eq(MerchantCommunity::getEnabled, 1)
+            );
+
+            if (merchantCommunities.isEmpty()) {
+                return new ArrayList<>();
+            }
+
+            List<Long> communityMerchantIds = merchantCommunities.stream()
+                    .map(MerchantCommunity::getMerchantId)
+                    .collect(Collectors.toList());
+
+            // 取交集：营业中且可配送到该小区的商户
+            openMerchantIds = openMerchantIds.stream()
+                    .filter(communityMerchantIds::contains)
+                    .collect(Collectors.toList());
+        }
+
+        return openMerchantIds;
     }
 }

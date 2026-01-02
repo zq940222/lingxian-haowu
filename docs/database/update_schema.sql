@@ -180,5 +180,68 @@ COMMENT ON TABLE t_merchant_info_audit IS '商户信息变更审核表';
 CREATE INDEX idx_merchant_info_audit_merchant ON t_merchant_info_audit(merchant_id);
 CREATE INDEX idx_merchant_info_audit_status ON t_merchant_info_audit(status);
 
+-- ====================================
+-- 小区表
+-- ====================================
+DROP TABLE IF EXISTS t_community CASCADE;
+
+CREATE TABLE t_community (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(64) NOT NULL COMMENT '小区名称',
+    province VARCHAR(32) COMMENT '省份',
+    city VARCHAR(32) COMMENT '城市',
+    district VARCHAR(32) COMMENT '区县',
+    address VARCHAR(256) COMMENT '详细地址',
+    longitude DECIMAL(10,6) COMMENT '经度',
+    latitude DECIMAL(10,6) COMMENT '纬度',
+    status SMALLINT DEFAULT 1 COMMENT '状态 0-禁用 1-启用',
+    sort INTEGER DEFAULT 0 COMMENT '排序',
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted SMALLINT DEFAULT 0
+);
+
+COMMENT ON TABLE t_community IS '小区表';
+CREATE INDEX idx_community_status ON t_community(status);
+CREATE INDEX idx_community_city ON t_community(city);
+
+-- ====================================
+-- 商户配送小区关联表
+-- ====================================
+DROP TABLE IF EXISTS t_merchant_community CASCADE;
+
+CREATE TABLE t_merchant_community (
+    id BIGSERIAL PRIMARY KEY,
+    merchant_id BIGINT NOT NULL COMMENT '商户ID',
+    community_id BIGINT NOT NULL COMMENT '小区ID',
+    enabled SMALLINT DEFAULT 1 COMMENT '是否开放配送 0-关闭 1-开放',
+    sort INTEGER DEFAULT 0 COMMENT '排序',
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted SMALLINT DEFAULT 0
+);
+
+COMMENT ON TABLE t_merchant_community IS '商户配送小区关联表';
+CREATE INDEX idx_merchant_community_merchant ON t_merchant_community(merchant_id);
+CREATE INDEX idx_merchant_community_community ON t_merchant_community(community_id);
+CREATE INDEX idx_merchant_community_enabled ON t_merchant_community(enabled);
+CREATE UNIQUE INDEX idx_merchant_community_unique ON t_merchant_community(merchant_id, community_id) WHERE deleted = 0;
+
+-- 插入测试小区数据
+INSERT INTO t_community (name, province, city, district, address, status, sort) VALUES
+('阳光花园', '浙江省', '杭州市', '西湖区', '文三路100号', 1, 1),
+('翠苑小区', '浙江省', '杭州市', '西湖区', '翠苑街道', 1, 2),
+('城西银泰城', '浙江省', '杭州市', '西湖区', '丰潭路380号', 1, 3),
+('西溪花园', '浙江省', '杭州市', '西湖区', '西溪路500号', 1, 4),
+('嘉绿苑', '浙江省', '杭州市', '西湖区', '嘉绿北路', 1, 5);
+
+-- 插入测试商户配送小区数据（假设商户ID=1存在）
+INSERT INTO t_merchant_community (merchant_id, community_id, enabled, sort) VALUES
+(1, 1, 1, 1),
+(1, 2, 1, 2),
+(1, 3, 0, 3),
+(1, 4, 1, 4),
+(1, 5, 0, 5);
+
 -- 完成
 SELECT '数据库更新完成！' AS message;

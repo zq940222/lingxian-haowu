@@ -72,6 +72,7 @@
 
       <!-- 空状态 -->
       <view class="empty" v-if="!loading && comments.length === 0">
+        <uni-icons type="chat" size="64" color="#ccc" />
         <text>暂无评价</text>
       </view>
     </view>
